@@ -1,0 +1,1016 @@
+{
+  "info": {
+    "name": "School Management System API",
+    "description": "Complete API collection for testing all endpoints in the School Management System",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "12345678"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3001/api",
+      "type": "string"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "userId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "studentId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "teacherId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "classId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Test",
+      "item": [
+        {
+          "name": "Test Connection",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/test",
+              "host": ["{{baseUrl}}"],
+              "path": ["test"]
+            },
+            "description": "Test if backend is working"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "2. Authentication",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.success && jsonData.data.session) {",
+                  "        pm.environment.set('accessToken', jsonData.data.session.access_token);",
+                  "        pm.environment.set('userId', jsonData.data.user.id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@school.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            },
+            "description": "Login with email and password. Saves access token to environment."
+          },
+          "response": []
+        },
+        {
+          "name": "Register Student",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"newstudent@school.com\",\n  \"password\": \"password123\",\n  \"firstName\": \"John\",\n  \"lastName\": \"Doe\",\n  \"studentCode\": \"STU-2025-00001\",\n  \"dateOfBirth\": \"2010-05-15\",\n  \"phone\": \"+1234567890\",\n  \"address\": \"123 Main St\",\n  \"parentEmail\": \"parent@email.com\",\n  \"parentName\": \"Jane Doe\",\n  \"parentPhone\": \"+1234567890\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "register"]
+            },
+            "description": "Register new student with validation code"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Current User",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/user",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "user"]
+            },
+            "description": "Get currently authenticated user"
+          },
+          "response": []
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/logout",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "logout"]
+            },
+            "description": "Logout current user"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "3. Student Code Validation",
+      "item": [
+        {
+          "name": "Validate Code",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"STU-2025-00001\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/validate/student-code",
+              "host": ["{{baseUrl}}"],
+              "path": ["validate", "student-code"]
+            },
+            "description": "Check if student code is valid and available"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "4. Admin - Codes",
+      "item": [
+        {
+          "name": "Generate Codes",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"count\": 50,\n  \"expiryDays\": 90\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/codes",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "codes"]
+            },
+            "description": "Generate multiple student registration codes (Admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Codes",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/codes?status=active&limit=100&offset=0",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "codes"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "active",
+                  "description": "Filter by status (active, used, expired)"
+                },
+                {
+                  "key": "limit",
+                  "value": "100",
+                  "description": "Number of codes to return"
+                },
+                {
+                  "key": "offset",
+                  "value": "0",
+                  "description": "Pagination offset"
+                }
+              ]
+            },
+            "description": "Get all generated student codes (Admin only)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "5. Students",
+      "item": [
+        {
+          "name": "Get All Students",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/students?status=active&limit=50&offset=0",
+              "host": ["{{baseUrl}}"],
+              "path": ["students"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "active",
+                  "description": "Filter by status (active, pending, suspended)"
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Search by name or email",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "description": "Number of students"
+                },
+                {
+                  "key": "offset",
+                  "value": "0",
+                  "description": "Pagination offset"
+                }
+              ]
+            },
+            "description": "Get list of all students (Admin/Teacher)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Student by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/students/{{studentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["students", "{{studentId}}"]
+            },
+            "description": "Get detailed student information"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Student by Code",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/students/code/STU-2025-00001",
+              "host": ["{{baseUrl}}"],
+              "path": ["students", "code", "STU-2025-00001"]
+            },
+            "description": "Get student by their student code"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Student",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"first_name\": \"John\",\n  \"last_name\": \"Doe\",\n  \"phone\": \"+1234567890\",\n  \"address\": \"456 New St\",\n  \"status\": \"active\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/students/{{studentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["students", "{{studentId}}"]
+            },
+            "description": "Update student information (Admin or own profile)"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Student",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/students/{{studentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["students", "{{studentId}}"]
+            },
+            "description": "Delete student (Admin only)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "6. Teachers",
+      "item": [
+        {
+          "name": "Get All Teachers",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/teachers",
+              "host": ["{{baseUrl}}"],
+              "path": ["teachers"]
+            },
+            "description": "Get list of all teachers (Admin)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Teacher by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/teachers/{{teacherId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["teachers", "{{teacherId}}"]
+            },
+            "description": "Get detailed teacher information"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Teacher",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"newteacher@school.com\",\n  \"password\": \"password123\",\n  \"firstName\": \"Jane\",\n  \"lastName\": \"Smith\",\n  \"specialization\": \"Mathematics\",\n  \"phone\": \"+1234567890\",\n  \"hireDate\": \"2025-01-15\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/teachers",
+              "host": ["{{baseUrl}}"],
+              "path": ["teachers"]
+            },
+            "description": "Create new teacher account (Admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Teacher",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"first_name\": \"Jane\",\n  \"last_name\": \"Smith\",\n  \"specialization\": \"Advanced Mathematics\",\n  \"phone\": \"+1234567890\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/teachers/{{teacherId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["teachers", "{{teacherId}}"]
+            },
+            "description": "Update teacher information"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "7. Classes",
+      "item": [
+        {
+          "name": "Get All Classes",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/classes",
+              "host": ["{{baseUrl}}"],
+              "path": ["classes"],
+              "query": [
+                {
+                  "key": "teacher_id",
+                  "value": "",
+                  "description": "Filter by teacher",
+                  "disabled": true
+                },
+                {
+                  "key": "semester",
+                  "value": "",
+                  "description": "Filter by semester",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get list of all classes"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Class by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/classes/{{classId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["classes", "{{classId}}"]
+            },
+            "description": "Get detailed class information"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Class",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"class_code\": \"MATH101\",\n  \"class_name\": \"Mathematics 101\",\n  \"teacher_id\": \"{{teacherId}}\",\n  \"schedule\": \"Mon/Wed 10:00-11:30\",\n  \"room\": \"Room 201\",\n  \"capacity\": 30,\n  \"semester\": \"Fall 2025\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/classes",
+              "host": ["{{baseUrl}}"],
+              "path": ["classes"]
+            },
+            "description": "Create new class (Admin/Teacher)"
+          },
+          "response": []
+        },
+        {
+          "name": "Enroll Student",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"student_id\": \"{{studentId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/classes/{{classId}}/enroll",
+              "host": ["{{baseUrl}}"],
+              "path": ["classes", "{{classId}}", "enroll"]
+            },
+            "description": "Enroll student in a class"
+          },
+          "response": []
+        },
+        {
+          "name": "Drop Student",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/classes/{{classId}}/students/{{studentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["classes", "{{classId}}", "students", "{{studentId}}"]
+            },
+            "description": "Remove student from class"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "8. Attendance",
+      "item": [
+        {
+          "name": "Mark Attendance",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"class_id\": \"{{classId}}\",\n  \"student_id\": \"{{studentId}}\",\n  \"date\": \"2025-10-21\",\n  \"status\": \"present\",\n  \"notes\": \"Optional notes\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/attendance",
+              "host": ["{{baseUrl}}"],
+              "path": ["attendance"]
+            },
+            "description": "Mark student attendance (Teacher)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Attendance Records",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/attendance?student_id={{studentId}}&class_id={{classId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["attendance"],
+              "query": [
+                {
+                  "key": "student_id",
+                  "value": "{{studentId}}",
+                  "description": "Filter by student"
+                },
+                {
+                  "key": "class_id",
+                  "value": "{{classId}}",
+                  "description": "Filter by class"
+                },
+                {
+                  "key": "date",
+                  "value": "",
+                  "description": "Filter by date",
+                  "disabled": true
+                },
+                {
+                  "key": "start_date",
+                  "value": "",
+                  "description": "Date range start",
+                  "disabled": true
+                },
+                {
+                  "key": "end_date",
+                  "value": "",
+                  "description": "Date range end",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get attendance records"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Attendance Statistics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/attendance/statistics?student_id={{studentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["attendance", "statistics"],
+              "query": [
+                {
+                  "key": "student_id",
+                  "value": "{{studentId}}"
+                }
+              ]
+            },
+            "description": "Get attendance statistics for a student"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "9. Grades",
+      "item": [
+        {
+          "name": "Add Grade",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"student_id\": \"{{studentId}}\",\n  \"class_id\": \"{{classId}}\",\n  \"assessment_type\": \"exam\",\n  \"score\": 95.5,\n  \"max_score\": 100,\n  \"assessment_date\": \"2025-10-20\",\n  \"notes\": \"Midterm exam\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/grades",
+              "host": ["{{baseUrl}}"],
+              "path": ["grades"]
+            },
+            "description": "Add grade for student (Teacher)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Grades",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/grades?student_id={{studentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["grades"],
+              "query": [
+                {
+                  "key": "student_id",
+                  "value": "{{studentId}}",
+                  "description": "Filter by student"
+                },
+                {
+                  "key": "class_id",
+                  "value": "",
+                  "description": "Filter by class",
+                  "disabled": true
+                },
+                {
+                  "key": "semester",
+                  "value": "",
+                  "description": "Filter by semester",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get grade records"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Grade",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"score\": 97.5,\n  \"notes\": \"Updated after review\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/grades/:gradeId",
+              "host": ["{{baseUrl}}"],
+              "path": ["grades", ":gradeId"],
+              "variable": [
+                {
+                  "key": "gradeId",
+                  "value": ""
+                }
+              ]
+            },
+            "description": "Update existing grade"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Grade Summary",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/grades/summary?student_id={{studentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["grades", "summary"],
+              "query": [
+                {
+                  "key": "student_id",
+                  "value": "{{studentId}}"
+                }
+              ]
+            },
+            "description": "Get grade summary with GPA"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "10. Assignments",
+      "item": [
+        {
+          "name": "Create Assignment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"class_id\": \"{{classId}}\",\n  \"title\": \"Calculus Problem Set 1\",\n  \"description\": \"Complete problems 1-20\",\n  \"due_date\": \"2025-10-30T23:59:59Z\",\n  \"max_points\": 100\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/assignments",
+              "host": ["{{baseUrl}}"],
+              "path": ["assignments"]
+            },
+            "description": "Create new assignment (Teacher)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Assignments",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/assignments?class_id={{classId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["assignments"],
+              "query": [
+                {
+                  "key": "class_id",
+                  "value": "{{classId}}",
+                  "description": "Filter by class"
+                },
+                {
+                  "key": "student_id",
+                  "value": "",
+                  "description": "Filter by student",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "description": "Filter by status",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get assignments"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Assignment by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/assignments/:assignmentId",
+              "host": ["{{baseUrl}}"],
+              "path": ["assignments", ":assignmentId"],
+              "variable": [
+                {
+                  "key": "assignmentId",
+                  "value": ""
+                }
+              ]
+            },
+            "description": "Get assignment details"
+          },
+          "response": []
+        },
+        {
+          "name": "Submit Assignment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"submission_text\": \"My solution to the problem set...\",\n  \"file_url\": \"https://storage.supabase.co/...\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/assignments/:assignmentId/submit",
+              "host": ["{{baseUrl}}"],
+              "path": ["assignments", ":assignmentId", "submit"],
+              "variable": [
+                {
+                  "key": "assignmentId",
+                  "value": ""
+                }
+              ]
+            },
+            "description": "Submit assignment (Student)"
+          },
+          "response": []
+        },
+        {
+          "name": "Grade Submission",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"submission_id\": \"uuid\",\n  \"score\": 95,\n  \"feedback\": \"Excellent work!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/assignments/:assignmentId/grade",
+              "host": ["{{baseUrl}}"],
+              "path": ["assignments", ":assignmentId", "grade"],
+              "variable": [
+                {
+                  "key": "assignmentId",
+                  "value": ""
+                }
+              ]
+            },
+            "description": "Grade student submission (Teacher)"
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
