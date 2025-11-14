@@ -1,94 +1,104 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export default function LoginPage() {
-  const router = useRouter()
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState('')
+  const router = useRouter();
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
 
   // Login form state
-  const [loginEmail, setLoginEmail] = useState('')
-  const [loginPassword, setLoginPassword] = useState('')
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
 
   const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
-    setError('')
+    e.preventDefault();
+    setIsLoading(true);
+    setError("");
 
     try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ email: loginEmail.trim(), password: loginPassword }),
-      })
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          email: loginEmail.trim(),
+          password: loginPassword,
+        }),
+      });
 
-      const data = await response.json().catch(() => null)
+      const data = await response.json().catch(() => null);
 
       // Dev debug output
       try {
         // @ts-ignore
-        if (process.env.NODE_ENV === 'development') console.debug('login response', { status: response.status, data })
+        if (process.env.NODE_ENV === "development")
+          console.debug("login response", { status: response.status, data });
       } catch (e) {
         // ignore
       }
 
       if (!response.ok) {
-        setError(data?.error || `Login failed (${response.status})`)
-        setIsLoading(false)
-        return
+        setError(data?.error || `Login failed (${response.status})`);
+        setIsLoading(false);
+        return;
       }
 
       if (!data?.success) {
-        setError(data?.error || 'Login failed')
-        setIsLoading(false)
-        return
+        setError(data?.error || "Login failed");
+        setIsLoading(false);
+        return;
       }
 
       // Ensure server-set cookies are applied client-side
       try {
-        await router.refresh()
-        await new Promise((r) => setTimeout(r, 100))
+        await router.refresh();
+        await new Promise((r) => setTimeout(r, 100));
       } catch (e) {
         // ignore
       }
 
-      const rawRole = data.profile?.role ?? 'student'
-      const role = String(rawRole).toLowerCase().replace(/\s+/g, '_')
+      const rawRole = data.profile?.role ?? "student";
+      const role = String(rawRole).toLowerCase().replace(/\s+/g, "_");
 
-      let target = '/student/dashboard'
-      if (role.includes('super') && role.includes('admin')) target = '/super-admin/dashboard'
-      else if (role === 'admin') target = '/landing-page'
-      else if (role === 'teacher') target = '/teacher/dashboard'
-      else if (role === 'parent') target = '/parent/dashboard'
+      let target = "/student/dashboard";
+      if (role.includes("super") && role.includes("admin"))
+        target = "/super-admin/dashboard";
+      else if (role === "admin") target = "/landing-page";
+      else if (role === "teacher") target = "/teacher/dashboard";
+      else if (role === "parent") target = "/parent/dashboard";
 
-      console.log('Navigating to:', target, 'Role:', role)
+      console.log("Navigating to:", target, "Role:", role);
 
       // Force immediate navigation - keep loading state active until redirect completes
-      // eslint-disable-next-line no-restricted-globals
-      window.location.href = target
+
+      window.location.href = target;
     } catch (err: any) {
-      setError(err.message || 'An error occurred')
-      setIsLoading(false)
+      setError(err.message || "An error occurred");
+      setIsLoading(false);
     }
-  }
+  };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-md">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">
-            School Management System
-          </h1>
-          <p className="text-gray-600">Sign in to your account</p>
+          <h1 className="text-4xl font-bold mb-2">School Management System</h1>
+          <p className="text-muted-foreground">Sign in to your account</p>
         </div>
 
         {/* Login Card */}
@@ -135,27 +145,30 @@ export default function LoginPage() {
               </div>
 
               <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? 'Signing in...' : 'Sign In'}
+                {isLoading ? "Signing in..." : "Sign In"}
               </Button>
             </form>
           </CardContent>
           <CardFooter className="flex justify-center">
-            <p className="text-sm text-gray-600">
-              Forgot password?{' '}
-                  <a href="/forgot-password" className="text-blue-600 hover:underline">
-                    Reset here
-                  </a>
+            <p className="text-sm text-muted-foreground">
+              Forgot password?{" "}
+              <a
+                href="/forgot-password"
+                className="text-primary hover:underline"
+              >
+                Reset here
+              </a>
             </p>
           </CardFooter>
         </Card>
 
         {/* Footer */}
         <div className="text-center mt-6">
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-muted-foreground">
             © 2025 School Management System. All rights reserved.
           </p>
         </div>
       </div>
     </div>
-  )
+  );
 }
