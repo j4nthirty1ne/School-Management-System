@@ -16,11 +16,11 @@ interface CreateStudentData {
   emergencyContactPhone?: string
   medicalNotes?: string
   // Parent info
-  parentEmail: string
-  parentFirstName: string
-  parentLastName: string
+  parentEmail?: string
+  parentFirstName?: string
+  parentLastName?: string
   parentPhone?: string
-  parentRelationship: 'father' | 'mother' | 'guardian' | 'other'
+  parentRelationship?: 'father' | 'mother' | 'guardian' | 'other'
   parentOccupation?: string
 }
 
@@ -64,72 +64,84 @@ export const registerStudent = async (studentData: CreateStudentData) => {
 
     if (studentError) throw studentError
 
-    // 3. Check if parent already exists
-    const { data: existingParentProfile } = await supabaseAdmin
-      .from('user_profiles')
-      .select('id')
-      .eq('role', 'parent')
-      .ilike('email', studentData.parentEmail)
-      .single()
-
-    let parentId: string
-
-    if (existingParentProfile) {
-      // Parent exists, get parent record
-      const { data: existingParent } = await supabaseAdmin
-        .from('parents')
+    // 3. Optionally create/link parent if parent email was provided
+    if (studentData.parentEmail) {
+      // Check if parent already exists
+      const { data: existingParentProfile } = await supabaseAdmin
+        .from('user_profiles')
         .select('id')
-        .eq('user_id', existingParentProfile.id)
+        .eq('role', 'parent')
+        .ilike('email', studentData.parentEmail)
         .single()
 
-      parentId = existingParent!.id
-    } else {
-      // 4. Create parent account
-      const tempPassword = generateTemporaryPassword()
-      
-      const parentResult = await registerUser({
-        email: studentData.parentEmail,
-        password: tempPassword,
-        firstName: studentData.parentFirstName,
-        lastName: studentData.parentLastName,
-        phone: studentData.parentPhone,
-        role: 'parent',
-      })
+      let parentId: string | undefined
 
-      if (!parentResult.success || !parentResult.user) {
-        throw new Error(parentResult.error || 'Failed to create parent account')
+      if (existingParentProfile) {
+        // Parent exists, get parent record
+        const { data: existingParent } = await supabaseAdmin
+          .from('parents')
+          .select('id')
+          .eq('user_id', existingParentProfile.id)
+          .single()
+
+        parentId = existingParent?.id
+      } else if (studentData.parentFirstName && studentData.parentLastName) {
+        // Create parent account — create with a generated temporary password and
+        // create an invite token that the admin can send to the parent.
+        const tempPassword = generateTemporaryPassword()
+
+        const parentResult = await registerUser({
+          email: studentData.parentEmail,
+          password: tempPassword,
+          firstName: studentData.parentFirstName,
+          lastName: studentData.parentLastName,
+          phone: studentData.parentPhone,
+          role: 'parent',
+        })
+
+        if (!parentResult.success || !parentResult.user) {
+          throw new Error(parentResult.error || 'Failed to create parent account')
+        }
+
+        // Create parent record
+        const { data: parent, error: parentError } = await supabaseAdmin
+          .from('parents')
+          .insert({
+            user_id: parentResult.user.id,
+            occupation: studentData.parentOccupation,
+          })
+          .select()
+          .single()
+
+        if (parentError) throw parentError
+
+        parentId = parent.id
+
+        // Generate invite token and log the invite URL (placeholder).
+        try {
+          const { createInvite } = await import('../tempInviteStore')
+          const inviteToken = createInvite(parentResult.user.id)
+          const inviteUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/onboard?token=${inviteToken}`
+          console.log('Parent invite URL (placeholder):', inviteUrl)
+        } catch (e) {
+          console.warn('Failed to generate parent invite token (placeholder):', e)
+        }
       }
 
-      // 5. Create parent record
-      const { data: parent, error: parentError } = await supabaseAdmin
-        .from('parents')
-        .insert({
-          user_id: parentResult.user.id,
-          occupation: studentData.parentOccupation,
-          address: studentData.address,
-        })
-        .select()
-        .single()
+      // Link parent to student if we have a parentId
+      if (parentId) {
+        const { error: linkError } = await supabaseAdmin
+          .from('parent_student_links')
+          .insert({
+            parent_id: parentId,
+            student_id: student.id,
+            relationship: studentData.parentRelationship || 'parent',
+            is_primary: true,
+          })
 
-      if (parentError) throw parentError
-
-      parentId = parent.id
-
-      // TODO: Send email to parent with temporary password
-      console.log('Parent temporary password:', tempPassword)
+        if (linkError) throw linkError
+      }
     }
-
-    // 6. Link parent to student
-    const { error: linkError } = await supabaseAdmin
-      .from('parent_student_links')
-      .insert({
-        parent_id: parentId,
-        student_id: student.id,
-        relationship: studentData.parentRelationship,
-        is_primary: true,
-      })
-
-    if (linkError) throw linkError
 
     return {
       success: true,
@@ -294,9 +306,6 @@ export const updateStudent = async (
   }
 }
 
-/**
- * Delete student (soft delete by changing status)
- */
 export const deleteStudent = async (studentId: string) => {
   try {
     const { error } = await supabaseAdmin
@@ -312,6 +321,92 @@ export const deleteStudent = async (studentId: string) => {
       success: false,
       error: error.message,
     }
+  }
+}
+
+/**
+ * Claim a pre-created student account using student_code.
+ * This is intended for the student to complete registration after an admin
+ * pre-created the auth user + student record. The student provides the
+ * student_code and a new password (and optionally name updates). The function
+ * will set the user's password via the Supabase admin API, update the profile
+ * if provided, mark the student_code as used and set enrollment_status -> active.
+ */
+export const claimStudentRegistration = async (
+  studentCode: string,
+  newPassword: string,
+  updates?: { firstName?: string; lastName?: string }
+) => {
+  try {
+    // 1. Find the student by code
+    const { data: studentData, error: studentError } = await supabaseAdmin
+      .from('students')
+      .select(`*, user_profiles (*)`)
+      .eq('student_code', studentCode)
+      .single()
+
+    if (studentError || !studentData) {
+      throw studentError || new Error('Student not found for provided code')
+    }
+
+    const userId = studentData.user_id
+
+    // 2. Update the auth user password (admin operation)
+    // supabase Admin SDK provides an admin.updateUserById-like API; call and
+    // fall back to admin.updateUser if the exact helper differs in runtime.
+    try {
+      // Use `any` casts to support different supabase-js versions without
+      // causing TypeScript type errors in this repository.
+      const authAny: any = supabaseAdmin.auth
+
+      if (authAny && authAny.admin && typeof authAny.admin.updateUserById === 'function') {
+        await authAny.admin.updateUserById(userId, { password: newPassword })
+      } else if (authAny && authAny.admin && typeof authAny.admin.updateUser === 'function') {
+        await authAny.admin.updateUser(userId, { password: newPassword })
+      } else if (typeof authAny.updateUser === 'function') {
+        await authAny.updateUser({ id: userId, password: newPassword })
+      } else {
+        throw new Error('Supabase admin updateUser API not available')
+      }
+    } catch (authUpdateErr: any) {
+      throw new Error(`Failed to set user password: ${authUpdateErr?.message || authUpdateErr}`)
+    }
+
+    // 3. Optionally update user profile names
+    if (updates?.firstName || updates?.lastName) {
+      const { error: profileUpdateErr } = await supabaseAdmin
+        .from('user_profiles')
+        .update({
+          first_name: updates.firstName,
+          last_name: updates.lastName,
+        })
+        .eq('id', userId)
+
+      if (profileUpdateErr) throw profileUpdateErr
+    }
+
+    // 4. Mark the student_code as used (if present in student_codes table)
+    const { error: markCodeErr } = await supabaseAdmin
+      .from('student_codes')
+      .update({ status: 'used', used_by: userId, used_at: new Date().toISOString() })
+      .eq('code', studentCode)
+
+    if (markCodeErr) {
+      // Not fatal: continue but warn
+      console.warn('Failed to mark student_code used:', markCodeErr)
+    }
+
+    // 5. Set student enrollment_status -> active
+    const { error: studentUpdateErr } = await supabaseAdmin
+      .from('students')
+      .update({ enrollment_status: 'active' })
+      .eq('student_code', studentCode)
+
+    if (studentUpdateErr) throw studentUpdateErr
+
+    return { success: true }
+  } catch (error: any) {
+    return { success: false, error: error.message }
   }
 }
 
