@@ -1,11 +1,43 @@
+'use client'
+
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
+import { MagnetizeButton } from "@/components/magnetize-button"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { GraduationCap, Users, BookOpen, Shield, ArrowRight } from "lucide-react"
+import PixelBlast from "@/components/PixelBlast"
+import { useTheme } from "next-themes"
 
 export default function Home() {
+  const { theme } = useTheme()
+  
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background relative">
+      {/* PixelBlast Background */}
+      <div className="fixed inset-0 z-0 pointer-events-none">
+        <PixelBlast
+          variant="circle"
+          pixelSize={6}
+          color={theme === "light" ? "#6B7280" : "#B19EEF"}
+          patternScale={3}
+          patternDensity={1.2}
+          pixelSizeJitter={0.5}
+          enableRipples
+          rippleSpeed={0.4}
+          rippleThickness={0.12}
+          rippleIntensityScale={1.5}
+          liquid
+          liquidStrength={0.12}
+          liquidRadius={1.2}
+          liquidWobbleSpeed={5}
+          speed={0.6}
+          edgeFade={0}
+          transparent
+        />
+      </div>
+      
+      {/* Content Layer */}
+      <div className="relative z-10">
       <div className="absolute top-4 right-4">
         <ThemeToggle />
       </div>
@@ -16,26 +48,29 @@ export default function Home() {
             <GraduationCap className="h-10 w-10 text-primary" />
           </div>
           <h1 className="text-5xl font-bold mb-4 text-balance">School Management System</h1>
-          <p className="text-xl text-muted-foreground mb-8 text-pretty">
+          <p className="text-xl text-foreground font-semibold mb-8 text-pretty">
             A comprehensive platform for managing students, teachers, attendance, grades, and school communications all
             in one place
           </p>
           <div className="flex items-center justify-center gap-4">
-            <Button asChild size="lg">
-              <Link href="/login">
-                Sign In
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Link>
-            </Button>
-            <Button asChild variant="outline" size="lg">
+            <MagnetizeButton 
+              size="lg" 
+              className="bg-black/70 hover:bg-black dark:bg-primary/80 dark:hover:bg-white backdrop-blur-sm transition-all hover:scale-110 hover:font-bold dark:hover:scale-110 dark:hover:font-bold text-white hover:text-white dark:text-black dark:hover:text-black"
+              particleCount={15}
+              onClick={() => window.location.href = '/login'}
+            >
+              Sign In
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </MagnetizeButton>
+            <Button asChild variant="outline" size="lg" className="bg-background/50 hover:bg-background/70 backdrop-blur-sm border-primary/30">
               <Link href="/register-user">Create Account</Link>
             </Button>
           </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
-          <div className="rounded-lg border border-border bg-card p-6">
-            <div className="rounded-lg bg-primary/10 p-3 w-fit mb-4">
+          <div className="rounded-lg border border-primary/20 bg-background/30 backdrop-blur-md p-6 shadow-lg">
+            <div className="rounded-lg bg-primary/20 backdrop-blur-sm p-3 w-fit mb-4">
               <Shield className="h-6 w-6 text-primary" />
             </div>
             <h3 className="text-lg font-semibold mb-2">Admin Portal</h3>
@@ -44,8 +79,8 @@ export default function Home() {
             </p>
           </div>
 
-          <div className="rounded-lg border border-border bg-card p-6">
-            <div className="rounded-lg bg-primary/10 p-3 w-fit mb-4">
+          <div className="rounded-lg border border-primary/20 bg-background/30 backdrop-blur-md p-6 shadow-lg">
+            <div className="rounded-lg bg-primary/20 backdrop-blur-sm p-3 w-fit mb-4">
               <GraduationCap className="h-6 w-6 text-primary" />
             </div>
             <h3 className="text-lg font-semibold mb-2">Teacher Tools</h3>
@@ -54,8 +89,8 @@ export default function Home() {
             </p>
           </div>
 
-          <div className="rounded-lg border border-border bg-card p-6">
-            <div className="rounded-lg bg-primary/10 p-3 w-fit mb-4">
+          <div className="rounded-lg border border-primary/20 bg-background/30 backdrop-blur-md p-6 shadow-lg">
+            <div className="rounded-lg bg-primary/20 backdrop-blur-sm p-3 w-fit mb-4">
               <BookOpen className="h-6 w-6 text-primary" />
             </div>
             <h3 className="text-lg font-semibold mb-2">Student Access</h3>
@@ -64,8 +99,8 @@ export default function Home() {
             </p>
           </div>
 
-          <div className="rounded-lg border border-border bg-card p-6">
-            <div className="rounded-lg bg-primary/10 p-3 w-fit mb-4">
+          <div className="rounded-lg border border-primary/20 bg-background/30 backdrop-blur-md p-6 shadow-lg">
+            <div className="rounded-lg bg-primary/20 backdrop-blur-sm p-3 w-fit mb-4">
               <Users className="h-6 w-6 text-primary" />
             </div>
             <h3 className="text-lg font-semibold mb-2">Parent Portal</h3>
@@ -75,7 +110,7 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="mt-16 max-w-3xl mx-auto rounded-lg border border-border bg-card p-8">
+        <div className="mt-16 max-w-3xl mx-auto rounded-lg border border-primary/20 bg-background/30 backdrop-blur-md p-8 shadow-lg">
           <h2 className="text-2xl font-bold mb-4 text-center">Key Features</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="flex items-start gap-3">
@@ -116,6 +151,7 @@ export default function Home() {
             </div>
           </div>
         </div>
+      </div>
       </div>
     </div>
   )
