@@ -320,22 +320,52 @@ CREATE INDEX idx_announcements_published ON announcements(is_published);
 ```sql
 CREATE TABLE public.assignments (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  class_id UUID REFERENCES classes(id) ON DELETE CASCADE,
   title VARCHAR(200) NOT NULL,
   description TEXT,
-  class_id UUID REFERENCES classes(id) ON DELETE CASCADE NOT NULL,
-  subject_id UUID REFERENCES subjects(id) ON DELETE CASCADE NOT NULL,
-  teacher_id UUID REFERENCES teachers(id) NOT NULL,
-  due_date TIMESTAMP WITH TIME ZONE NOT NULL,
-  total_marks DECIMAL(5,2) DEFAULT 100,
-  attachment_url TEXT,
+  type VARCHAR(50) NOT NULL DEFAULT 'assignment', -- assignment, quiz, homework, project
+  due_date DATE,
+  max_score INTEGER DEFAULT 100,
+  instructions TEXT,
+  file_url TEXT,
+  file_name VARCHAR(255),
+  status VARCHAR(50) DEFAULT 'active', -- active, archived, draft
+  created_by UUID REFERENCES user_profiles(id),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
-CREATE INDEX idx_assignments_class ON assignments(class_id);
-CREATE INDEX idx_assignments_subject ON assignments(subject_id);
-CREATE INDEX idx_assignments_teacher ON assignments(teacher_id);
+CREATE INDEX idx_assignments_class_id ON assignments(class_id);
+CREATE INDEX idx_assignments_type ON assignments(type);
+CREATE INDEX idx_assignments_status ON assignments(status);
 CREATE INDEX idx_assignments_due_date ON assignments(due_date);
+CREATE INDEX idx_assignments_created_by ON assignments(created_by);
+```
+
+### 3.15 Assignment Submissions Table
+
+```sql
+CREATE TABLE public.assignment_submissions (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  assignment_id UUID REFERENCES assignments(id) ON DELETE CASCADE NOT NULL,
+  student_id UUID REFERENCES students(id) ON DELETE CASCADE NOT NULL,
+  submission_text TEXT,
+  file_url TEXT,
+  file_name VARCHAR(255),
+  submitted_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  grade DECIMAL(5,2),
+  feedback TEXT,
+  graded_by UUID REFERENCES teachers(id),
+  graded_at TIMESTAMP WITH TIME ZONE,
+  status VARCHAR(50) DEFAULT 'submitted', -- submitted, graded, late, missing
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(assignment_id, student_id)
+);
+
+CREATE INDEX idx_assignment_submissions_assignment ON assignment_submissions(assignment_id);
+CREATE INDEX idx_assignment_submissions_student ON assignment_submissions(student_id);
+CREATE INDEX idx_assignment_submissions_status ON assignment_submissions(status);
 ```
 
 ---
@@ -392,6 +422,9 @@ CREATE TRIGGER update_announcements_updated_at BEFORE UPDATE ON announcements
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_assignments_updated_at BEFORE UPDATE ON assignments
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_assignment_submissions_updated_at BEFORE UPDATE ON assignment_submissions
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 ```
 
@@ -475,6 +508,7 @@ ALTER TABLE attendance ENABLE ROW LEVEL SECURITY;
 ALTER TABLE grades ENABLE ROW LEVEL SECURITY;
 ALTER TABLE announcements ENABLE ROW LEVEL SECURITY;
 ALTER TABLE assignments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE assignment_submissions ENABLE ROW LEVEL SECURITY;
 ```
 
 ### 5.2 User Profiles Policies
@@ -644,6 +678,106 @@ USING (
 -- Admins can manage all grades
 CREATE POLICY "Admins can manage all grades"
 ON grades FOR ALL
+USING (
+  EXISTS (
+    SELECT 1 FROM user_profiles
+    WHERE id = auth.uid() AND role = 'admin'
+  )
+);
+```
+
+### 5.6 Assignments Policies
+
+```sql
+-- Teachers can manage assignments for their classes
+CREATE POLICY "Teachers can manage their class assignments"
+ON assignments FOR ALL
+USING (
+  EXISTS (
+    SELECT 1 FROM teachers t
+    JOIN class_subjects cs ON cs.teacher_id = t.id
+    WHERE t.user_id = auth.uid()
+    AND cs.class_id = assignments.class_id
+  )
+);
+
+-- Students can view assignments for their classes
+CREATE POLICY "Students can view class assignments"
+ON assignments FOR SELECT
+USING (
+  EXISTS (
+    SELECT 1 FROM students s
+    WHERE s.user_id = auth.uid()
+    AND s.class_id = assignments.class_id
+  )
+);
+
+-- Parents can view assignments for their children's classes
+CREATE POLICY "Parents can view children assignments"
+ON assignments FOR SELECT
+USING (
+  EXISTS (
+    SELECT 1 FROM parent_student_links psl
+    JOIN parents p ON p.id = psl.parent_id
+    JOIN students s ON s.id = psl.student_id
+    WHERE p.user_id = auth.uid()
+    AND s.class_id = assignments.class_id
+  )
+);
+
+-- Admins can manage all assignments
+CREATE POLICY "Admins can manage all assignments"
+ON assignments FOR ALL
+USING (
+  EXISTS (
+    SELECT 1 FROM user_profiles
+    WHERE id = auth.uid() AND role = 'admin'
+  )
+);
+```
+
+### 5.7 Assignment Submissions Policies
+
+```sql
+-- Students can manage their own submissions
+CREATE POLICY "Students can manage own submissions"
+ON assignment_submissions FOR ALL
+USING (
+  EXISTS (
+    SELECT 1 FROM students s
+    WHERE s.id = assignment_submissions.student_id
+    AND s.user_id = auth.uid()
+  )
+);
+
+-- Teachers can view and grade submissions for their class assignments
+CREATE POLICY "Teachers can manage class submissions"
+ON assignment_submissions FOR ALL
+USING (
+  EXISTS (
+    SELECT 1 FROM teachers t
+    JOIN class_subjects cs ON cs.teacher_id = t.id
+    JOIN assignments a ON a.id = assignment_submissions.assignment_id
+    WHERE t.user_id = auth.uid()
+    AND cs.class_id = a.class_id
+  )
+);
+
+-- Parents can view their children's submissions
+CREATE POLICY "Parents can view children submissions"
+ON assignment_submissions FOR SELECT
+USING (
+  EXISTS (
+    SELECT 1 FROM parent_student_links psl
+    JOIN parents p ON p.id = psl.parent_id
+    WHERE psl.student_id = assignment_submissions.student_id
+    AND p.user_id = auth.uid()
+  )
+);
+
+-- Admins can manage all submissions
+CREATE POLICY "Admins can manage all submissions"
+ON assignment_submissions FOR ALL
 USING (
   EXISTS (
     SELECT 1 FROM user_profiles
