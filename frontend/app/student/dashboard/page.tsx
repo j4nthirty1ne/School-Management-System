@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Card,
   CardContent,
@@ -11,6 +10,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { JoinClassDialog } from "@/components/join-class-dialog";
 import {
   Dialog,
   DialogContent,
@@ -48,27 +48,17 @@ export default function StudentDashboard() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [openDialog, setOpenDialog] = useState<
-    null | "attendance" | "grades" | "assignments" | "classes" | "join-class"
+    null | "attendance" | "grades" | "assignments" | "classes"
   >(null);
+  const [joinDialogOpen, setJoinDialogOpen] = useState(false);
   const [attendanceData, setAttendanceData] = useState<any[]>([]);
   const [gradesData, setGradesData] = useState<any[]>([]);
   const [assignmentsData, setAssignmentsData] = useState<any[]>([]);
   const [classesData, setClassesData] = useState<any[]>([]);
   const [dialogLoading, setDialogLoading] = useState(false);
-  const [subjectCode, setSubjectCode] = useState("");
-  const [joinClassError, setJoinClassError] = useState("");
-  const [joinClassSuccess, setJoinClassSuccess] = useState("");
-
-  // Stats state
-  const [attendancePercentage, setAttendancePercentage] = useState("95.5%");
-  const [averageGrade, setAverageGrade] = useState("A-");
-  const [averageGradePercent, setAverageGradePercent] = useState("85.3%");
-  const [pendingAssignments, setPendingAssignments] = useState("3");
-  const [activeClasses, setActiveClasses] = useState("6");
 
   useEffect(() => {
     fetchUser();
-    fetchDashboardStats();
   }, []);
 
   const fetchUser = async () => {
@@ -88,86 +78,41 @@ export default function StudentDashboard() {
     }
   };
 
-  const fetchDashboardStats = async () => {
-    try {
-      // Fetch attendance
-      const attendanceRes = await fetch("/api/students/attendance");
-      const attendanceJson = await attendanceRes.json();
-      const attendance = attendanceJson.attendance || [];
-
-      if (attendance.length > 0) {
-        const presentCount = attendance.filter(
-          (a: any) => a.status === "present"
-        ).length;
-        const percentage =
-          Math.round((presentCount / attendance.length) * 100 * 10) / 10;
-        setAttendancePercentage(`${percentage}%`);
-      }
-
-      // Fetch grades
-      const gradesRes = await fetch("/api/students/grades");
-      const gradesJson = await gradesRes.json();
-      const grades = gradesJson.grades || [];
-
-      if (grades.length > 0) {
-        const avg =
-          Math.round(
-            (grades.reduce((s: number, g: any) => s + (g.percentage || 0), 0) /
-              grades.length) *
-              10
-          ) / 10;
-        setAverageGradePercent(`${avg}%`);
-
-        // Convert to letter grade
-        const letterGrade =
-          avg >= 93
-            ? "A"
-            : avg >= 90
-            ? "A-"
-            : avg >= 87
-            ? "B+"
-            : avg >= 83
-            ? "B"
-            : avg >= 80
-            ? "B-"
-            : avg >= 77
-            ? "C+"
-            : avg >= 73
-            ? "C"
-            : avg >= 70
-            ? "C-"
-            : avg >= 67
-            ? "D+"
-            : avg >= 63
-            ? "D"
-            : avg >= 60
-            ? "D-"
-            : "F";
-        setAverageGrade(letterGrade);
-      }
-
-      // Fetch assignments
-      const assignmentsRes = await fetch("/api/students/assignments");
-      const assignmentsJson = await assignmentsRes.json();
-      const assignments = assignmentsJson.assignments || [];
-      const pending = assignments.filter(
-        (a: any) => a.status !== "submitted" && a.status !== "graded"
-      ).length;
-      setPendingAssignments(pending.toString());
-
-      // Fetch classes
-      const classesRes = await fetch("/api/students/classes");
-      const classesJson = await classesRes.json();
-      const classes = classesJson.classes || [];
-      setActiveClasses(classes.length.toString());
-    } catch (error) {
-      console.error("Error fetching dashboard stats:", error);
-    }
-  };
-
   const handleLogout = async () => {
     await fetch("/api/auth/logout", { method: "POST" });
     router.push("/login");
+  };
+
+  const fetchDialogData = async (
+    dialogType: "attendance" | "grades" | "assignments" | "classes"
+  ) => {
+    setDialogLoading(true);
+    try {
+      if (dialogType === "attendance") {
+        const res = await fetch("/api/students/attendance");
+        const json = await res.json();
+        setAttendanceData(json.attendance || []);
+      }
+      if (dialogType === "grades") {
+        const res = await fetch("/api/students/grades");
+        const json = await res.json();
+        setGradesData(json.grades || []);
+      }
+      if (dialogType === "assignments") {
+        const res = await fetch("/api/students/assignments");
+        const json = await res.json();
+        setAssignmentsData(json.assignments || []);
+      }
+      if (dialogType === "classes") {
+        const res = await fetch("/api/students/classes");
+        const json = await res.json();
+        setClassesData(json.classes || []);
+      }
+    } catch (err) {
+      console.error("Failed to fetch dialog data", err);
+    } finally {
+      setDialogLoading(false);
+    }
   };
 
   const initials =
@@ -175,52 +120,9 @@ export default function StudentDashboard() {
       ? `${user.first_name[0]}${user.last_name[0]}`
       : user?.email?.[0]?.toUpperCase() || "?";
 
-  const formatTime = (time: string) => {
-    if (!time) return "";
-    const [hours, minutes] = time.split(":");
-    const hour = parseInt(hours);
-    const ampm = hour >= 12 ? "PM" : "AM";
-    const displayHour = hour % 12 || 12;
-    return `${displayHour}:${minutes} ${ampm}`;
-  };
-
   useEffect(() => {
     if (!openDialog) return;
-
-    const fetchData = async () => {
-      setDialogLoading(true);
-      try {
-        if (openDialog === "attendance") {
-          const res = await fetch("/api/students/attendance");
-          const json = await res.json();
-          setAttendanceData(json.attendance || []);
-        }
-
-        if (openDialog === "grades") {
-          const res = await fetch("/api/students/grades");
-          const json = await res.json();
-          setGradesData(json.grades || []);
-        }
-
-        if (openDialog === "assignments") {
-          const res = await fetch("/api/students/assignments");
-          const json = await res.json();
-          setAssignmentsData(json.assignments || []);
-        }
-
-        if (openDialog === "classes") {
-          const res = await fetch("/api/students/classes");
-          const json = await res.json();
-          setClassesData(json.classes || []);
-        }
-      } catch (err) {
-        console.error("Failed to fetch dialog data", err);
-      } finally {
-        setDialogLoading(false);
-      }
-    };
-
-    fetchData();
+    fetchDialogData(openDialog);
   }, [openDialog]);
 
   if (loading) {
@@ -247,30 +149,6 @@ export default function StudentDashboard() {
               <Badge variant="secondary" className="capitalize">
                 {user?.role || "Student"}
               </Badge>
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setOpenDialog("join-class")}
-                className="gap-2"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  className="h-4 w-4"
-                >
-                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-                  <circle cx="9" cy="7" r="4" />
-                  <line x1="19" x2="19" y1="8" y2="14" />
-                  <line x1="22" x2="16" y1="11" y2="11" />
-                </svg>
-                Join Class
-              </Button>
 
               <ThemeToggle />
 
@@ -359,9 +237,7 @@ export default function StudentDashboard() {
               </svg>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold dark:text-white">
-                {attendancePercentage}
-              </div>
+              <div className="text-2xl font-bold dark:text-white">95.5%</div>
               <p className="text-xs text-gray-500 dark:text-gray-400">
                 +2.5% from last month
               </p>
@@ -390,11 +266,9 @@ export default function StudentDashboard() {
               </svg>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold dark:text-white">
-                {averageGrade}
-              </div>
+              <div className="text-2xl font-bold dark:text-white">A-</div>
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                {averageGradePercent} overall
+                85.3% overall
               </p>
             </CardContent>
           </Card>
@@ -423,10 +297,44 @@ export default function StudentDashboard() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold dark:text-white">
-                {pendingAssignments} Pending
+                3 Pending
               </div>
               <p className="text-xs text-gray-500 dark:text-gray-400">
                 2 due this week
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card
+            className="cursor-pointer hover:shadow-lg transition-shadow dark:bg-[#1a1a1a] dark:border-gray-800"
+            onClick={() => router.push("/student/timetable")}
+          >
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium dark:text-white">
+                My Timetable
+              </CardTitle>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                className="h-4 w-4 text-purple-600"
+              >
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                <line x1="16" y1="2" x2="16" y2="6" />
+                <line x1="8" y1="2" x2="8" y2="6" />
+                <line x1="3" y1="10" x2="21" y2="10" />
+              </svg>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold dark:text-white">
+                View Schedule
+              </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Click to see your weekly timetable
               </p>
             </CardContent>
           </Card>
@@ -454,12 +362,21 @@ export default function StudentDashboard() {
               </svg>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold dark:text-white">
-                {activeClasses} Active
-              </div>
+              <div className="text-2xl font-bold dark:text-white">6 Active</div>
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                This semester
+                Your enrolled classes
               </p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-2 w-full"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setJoinDialogOpen(true);
+                }}
+              >
+                + Join New Class
+              </Button>
             </CardContent>
           </Card>
         </div>
@@ -481,56 +398,28 @@ export default function StudentDashboard() {
                 <div className="text-sm text-gray-500 dark:text-gray-400">
                   Loading...
                 </div>
-              ) : attendanceData.length === 0 ? (
-                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                  No attendance records found
-                </div>
               ) : (
-                attendanceData.map((row: any, i: number) => (
+                (attendanceData.length
+                  ? attendanceData
+                  : [
+                      { date: "2025-10-01", status: "Present" },
+                      { date: "2025-10-02", status: "Absent" },
+                      { date: "2025-10-03", status: "Present" },
+                    ]
+                ).map((row: any, i: number) => (
                   <div
                     key={i}
-                    className="p-4 border border-border rounded-lg dark:bg-[#1a1a1a] dark:border-gray-800 space-y-2"
+                    className="flex justify-between p-3 border border-border rounded-md dark:bg-[#1a1a1a] dark:border-gray-800"
                   >
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <div className="font-semibold text-base dark:text-white">
-                          {row.class_name || "Class"}
-                        </div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                          {row.date}
-                          {row.class_code && (
-                            <span className="ml-2 font-mono text-xs bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded">
-                              {row.class_code}
-                            </span>
-                          )}
-                        </div>
-                        {(row.start_time || row.end_time) && (
-                          <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                            ⏰ {formatTime(row.start_time)} -{" "}
-                            {formatTime(row.end_time)}
-                            {row.room_number && ` • Room ${row.room_number}`}
-                          </div>
-                        )}
-                        {row.notes && (
-                          <div className="text-sm text-gray-600 dark:text-gray-300 mt-2 italic">
-                            💬 {row.notes}
-                          </div>
-                        )}
-                      </div>
-                      <div
-                        className={`text-sm font-semibold px-3 py-1 rounded-full ${
-                          row.status === "present" || row.status === "Present"
-                            ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                            : row.status === "absent" || row.status === "Absent"
-                            ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-                            : row.status === "late" || row.status === "Late"
-                            ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
-                            : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
-                        }`}
-                      >
-                        {row.status.charAt(0).toUpperCase() +
-                          row.status.slice(1).toLowerCase()}
-                      </div>
+                    <div className="text-sm dark:text-white">{row.date}</div>
+                    <div
+                      className={`text-sm font-medium ${
+                        row.status === "present" || row.status === "Present"
+                          ? "text-green-600"
+                          : "text-red-600"
+                      }`}
+                    >
+                      {row.status}
                     </div>
                   </div>
                 ))
@@ -591,30 +480,31 @@ export default function StudentDashboard() {
                       : "85.3% overall"}
                   </p>
                   <div className="mt-4 space-y-3">
-                    {gradesData.length === 0 ? (
-                      <div className="text-center py-4 text-gray-500 dark:text-gray-400">
-                        No grades available yet
-                      </div>
-                    ) : (
-                      gradesData.map((g: any, i: number) => (
-                        <div
-                          key={i}
-                          className="flex justify-between p-3 border border-border rounded-md dark:bg-[#1a1a1a] dark:border-gray-800"
-                        >
-                          <div className="text-sm dark:text-white">
-                            {g.subject || g.subject_name || g.subject_id}
-                          </div>
-                          <div className="text-sm font-medium dark:text-white">
-                            {g.score ||
-                              (g.marks_obtained
-                                ? `${g.marks_obtained}/${g.total_marks}`
-                                : g.percentage
-                                ? `${g.percentage}%`
-                                : "N/A")}
-                          </div>
+                    {(gradesData.length
+                      ? gradesData
+                      : [
+                          { subject: "Mathematics", score: "92/100" },
+                          { subject: "Physics", score: "87/100" },
+                          { subject: "English", score: "88/100" },
+                        ]
+                    ).map((g: any, i: number) => (
+                      <div
+                        key={i}
+                        className="flex justify-between p-3 border border-border rounded-md dark:bg-[#1a1a1a] dark:border-gray-800"
+                      >
+                        <div className="text-sm dark:text-white">
+                          {g.subject || g.subject_name || g.subject_id}
                         </div>
-                      ))
-                    )}
+                        <div className="text-sm font-medium dark:text-white">
+                          {g.score ||
+                            (g.marks_obtained
+                              ? `${g.marks_obtained}/${g.total_marks}`
+                              : g.percentage
+                              ? `${g.percentage}%`
+                              : "N/A")}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </>
               )}
@@ -643,12 +533,23 @@ export default function StudentDashboard() {
                 <div className="text-sm text-gray-500 dark:text-gray-400">
                   Loading...
                 </div>
-              ) : assignmentsData.length === 0 ? (
-                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                  No assignments found
-                </div>
               ) : (
-                assignmentsData.map((a: any, i: number) => (
+                (assignmentsData.length
+                  ? assignmentsData
+                  : [
+                      {
+                        title: "Chemistry Lab Report",
+                        due: "Oct 23",
+                        status: "urgent",
+                      },
+                      { title: "History Essay", due: "Oct 25", status: "soon" },
+                      {
+                        title: "Math Problem Set",
+                        due: "Oct 28",
+                        status: "normal",
+                      },
+                    ]
+                ).map((a: any, i: number) => (
                   <div
                     key={i}
                     className="flex items-center justify-between p-3 border border-border rounded-md dark:bg-[#1a1a1a] dark:border-gray-800"
@@ -688,53 +589,37 @@ export default function StudentDashboard() {
           open={openDialog === "classes"}
           onOpenChange={(val) => setOpenDialog(val ? "classes" : null)}
         >
-          <DialogContent className="max-w-2xl">
+          <DialogContent>
             <DialogHeader>
-              <DialogTitle>My Classes</DialogTitle>
-              <DialogDescription>
-                Manage your enrolled classes
-              </DialogDescription>
+              <DialogTitle>Active Classes</DialogTitle>
+              <DialogDescription>This semester's classes</DialogDescription>
             </DialogHeader>
-            <div className="mt-4">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-sm font-medium dark:text-white">
-                  Enrolled Classes
-                </h3>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    setOpenDialog("join-class");
-                  }}
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    className="h-4 w-4 mr-2"
-                  >
-                    <line x1="12" x2="12" y1="5" y2="19" />
-                    <line x1="5" x2="19" y1="12" y2="12" />
-                  </svg>
-                  Join New Class
-                </Button>
-              </div>
-            </div>
-            <div className="space-y-3">
+            <div className="mt-4 space-y-3">
               {dialogLoading ? (
                 <div className="text-sm text-gray-500 dark:text-gray-400">
                   Loading...
                 </div>
-              ) : classesData.length === 0 ? (
-                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                  No classes enrolled yet. Join a class to get started!
-                </div>
               ) : (
-                classesData.map((c: any, i: number) => (
+                (classesData.length
+                  ? classesData
+                  : [
+                      {
+                        subject: "Mathematics",
+                        time: "Mon/Wed 9:00 - 10:00",
+                        teacher: "Dr. Sarah Miller",
+                      },
+                      {
+                        subject: "Physics",
+                        time: "Tue/Thu 10:30 - 11:30",
+                        teacher: "Prof. John Wilson",
+                      },
+                      {
+                        subject: "English",
+                        time: "Mon/Wed 1:00 - 2:00",
+                        teacher: "Ms. Emily Taylor",
+                      },
+                    ]
+                ).map((c: any, i: number) => (
                   <div
                     key={i}
                     className="flex items-center justify-between p-4 border border-border rounded-md dark:bg-[#1a1a1a] dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
@@ -745,17 +630,26 @@ export default function StudentDashboard() {
                       </p>
                       <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                         {c.time ||
-                          (c.start_time && c.end_time
-                            ? `${formatTime(c.start_time)} - ${formatTime(
-                                c.end_time
-                              )}`
-                            : "")}
-                        {(c.time || c.start_time) &&
-                          (c.teacher_name || c.teacher || c.instructor) &&
-                          " • "}
-                        {c.teacher_name || c.teacher || c.instructor}
+                          (c.start_time
+                            ? `${c.start_time} - ${c.end_time}`
+                            : "")}{" "}
+                        • {c.teacher_name || c.teacher || c.instructor}
                       </p>
                     </div>
+                    <Button
+                      size="sm"
+                      className="ml-4"
+                      onClick={() => {
+                        // Handle join class action - could open a video call link or class page
+                        window.alert(
+                          `Joining class: ${
+                            c.class_name || c.subject || c.subject_name
+                          }`
+                        );
+                      }}
+                    >
+                      Join Class
+                    </Button>
                   </div>
                 ))
               )}
@@ -764,122 +658,6 @@ export default function StudentDashboard() {
               <DialogClose asChild>
                 <Button>Close</Button>
               </DialogClose>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        <Dialog
-          open={openDialog === "join-class"}
-          onOpenChange={(val) => {
-            setOpenDialog(val ? "join-class" : null);
-            if (!val) {
-              setSubjectCode("");
-              setJoinClassError("");
-              setJoinClassSuccess("");
-            }
-          }}
-        >
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Join a Class</DialogTitle>
-              <DialogDescription>
-                Enter the class code or subject code provided by your teacher or
-                admin
-              </DialogDescription>
-            </DialogHeader>
-            <div className="mt-4 space-y-4">
-              {joinClassError && (
-                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-200 px-4 py-3 rounded-md text-sm">
-                  {joinClassError}
-                </div>
-              )}
-              {joinClassSuccess && (
-                <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-800 dark:text-green-200 px-4 py-3 rounded-md text-sm">
-                  {joinClassSuccess}
-                </div>
-              )}
-              <div className="space-y-2">
-                <label
-                  htmlFor="subject-code"
-                  className="text-sm font-medium dark:text-white"
-                >
-                  Class Code or Subject Code
-                </label>
-                <input
-                  id="subject-code"
-                  type="text"
-                  value={subjectCode}
-                  onChange={(e) => setSubjectCode(e.target.value.toUpperCase())}
-                  placeholder="e.g., U2767X, MATH-101"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md dark:bg-[#1a1a1a] dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  disabled={dialogLoading}
-                />
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Enter the class code (e.g., U2767X) or subject code (e.g.,
-                  MATH-101) provided by your teacher
-                </p>
-              </div>
-            </div>
-            <DialogFooter className="mt-4 gap-2">
-              <DialogClose asChild>
-                <Button variant="outline" disabled={dialogLoading}>
-                  Cancel
-                </Button>
-              </DialogClose>
-              <Button
-                onClick={async () => {
-                  if (!subjectCode.trim()) {
-                    setJoinClassError("Please enter a subject code");
-                    return;
-                  }
-
-                  setDialogLoading(true);
-                  setJoinClassError("");
-                  setJoinClassSuccess("");
-
-                  try {
-                    const response = await fetch("/api/students/join-class", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ subjectCode: subjectCode.trim() }),
-                    });
-
-                    const data = await response.json();
-
-                    if (data.success) {
-                      setJoinClassSuccess(
-                        `Successfully joined ${data.className || "class"}!`
-                      );
-                      setSubjectCode("");
-                      // Refresh classes list and stats
-                      fetchDashboardStats();
-                      setOpenDialog("classes");
-                      setTimeout(async () => {
-                        setDialogLoading(true);
-                        try {
-                          const res = await fetch("/api/students/classes");
-                          const json = await res.json();
-                          setClassesData(json.classes || []);
-                        } catch (err) {
-                          console.error("Failed to refresh classes", err);
-                        } finally {
-                          setDialogLoading(false);
-                        }
-                        setJoinClassSuccess("");
-                      }, 1500);
-                    } else {
-                      setJoinClassError(data.error || "Failed to join class");
-                    }
-                  } catch (error) {
-                    setJoinClassError("An error occurred. Please try again.");
-                  } finally {
-                    setDialogLoading(false);
-                  }
-                }}
-                disabled={dialogLoading || !subjectCode.trim()}
-              >
-                {dialogLoading ? "Joining..." : "Join Class"}
-              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -992,6 +770,18 @@ export default function StudentDashboard() {
           </Card>
         </div>
       </main>
+
+      <JoinClassDialog
+        open={joinDialogOpen}
+        onOpenChange={setJoinDialogOpen}
+        studentId={user?.id || ""}
+        onSuccess={() => {
+          // Refresh classes data when dialog is open
+          if (openDialog === "classes") {
+            fetchDialogData("classes");
+          }
+        }}
+      />
     </div>
   );
 }
