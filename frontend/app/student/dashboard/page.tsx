@@ -1,15 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -43,29 +37,19 @@ interface User {
 }
 
 export default function StudentDashboard() {
-  const router = useRouter();
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [openDialog, setOpenDialog] = useState<
-    null | "attendance" | "grades" | "assignments" | "classes"
-  >(null);
-  const [attendanceData, setAttendanceData] = useState<any[]>([]);
-  const [gradesData, setGradesData] = useState<any[]>([]);
-  const [assignmentsData, setAssignmentsData] = useState<any[]>([]);
-  const [classesData, setClassesData] = useState<any[]>([]);
-  const [dialogLoading, setDialogLoading] = useState(false);
-
-  // Stats state
-  const [attendanceRate, setAttendanceRate] = useState<number>(0);
-  const [averageGrade, setAverageGrade] = useState<string>("N/A");
-  const [gradePercentage, setGradePercentage] = useState<string>("0.0");
-  const [pendingAssignments, setPendingAssignments] = useState<number>(0);
-  const [totalClasses, setTotalClasses] = useState<number>(0);
+  const router = useRouter()
+  const [user, setUser] = useState<User | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [openDialog, setOpenDialog] = useState<null | 'attendance' | 'grades' | 'assignments' | 'classes'>(null)
+  const [attendanceData, setAttendanceData] = useState<any[]>([])
+  const [gradesData, setGradesData] = useState<any[]>([])
+  const [assignmentsData, setAssignmentsData] = useState<any[]>([])
+  const [classesData, setClassesData] = useState<any[]>([])
+  const [dialogLoading, setDialogLoading] = useState(false)
 
   useEffect(() => {
-    fetchUser();
-    fetchAllData();
-  }, []);
+    fetchUser()
+  }, [])
 
   const fetchUser = async () => {
     try {
@@ -77,137 +61,61 @@ export default function StudentDashboard() {
       } else {
         router.push("/login");
       }
-    } catch {
-      router.push("/login");
+    } catch (error) {
+      router.push('/login')
     } finally {
       setLoading(false);
     }
-  };
-
-  const fetchAllData = async () => {
-    try {
-      // Fetch attendance
-      const attendanceRes = await fetch("/api/students/attendance");
-      const attendanceJson = await attendanceRes.json();
-      if (attendanceJson.success && attendanceJson.attendance) {
-        setAttendanceData(attendanceJson.attendance);
-        // Calculate attendance rate
-        const total = attendanceJson.attendance.length;
-        const present = attendanceJson.attendance.filter(
-          (a: any) => a.status === "present" || a.status === "Present"
-        ).length;
-        const rate =
-          total > 0 ? Math.round((present / total) * 100 * 10) / 10 : 0;
-        setAttendanceRate(rate);
-      }
-
-      // Fetch grades
-      const gradesRes = await fetch("/api/students/grades");
-      const gradesJson = await gradesRes.json();
-      if (gradesJson.success && gradesJson.grades) {
-        setGradesData(gradesJson.grades);
-        // Calculate average grade
-        if (gradesJson.grades.length > 0) {
-          const avgPercentage =
-            gradesJson.grades.reduce((sum: number, g: any) => {
-              const percentage =
-                g.percentage ||
-                (g.marks_obtained && g.total_marks
-                  ? (g.marks_obtained / g.total_marks) * 100
-                  : 0);
-              return sum + percentage;
-            }, 0) / gradesJson.grades.length;
-
-          setGradePercentage(avgPercentage.toFixed(1));
-
-          // Convert to letter grade
-          let letter = "F";
-          if (avgPercentage >= 90) letter = "A";
-          else if (avgPercentage >= 85) letter = "A-";
-          else if (avgPercentage >= 80) letter = "B+";
-          else if (avgPercentage >= 75) letter = "B";
-          else if (avgPercentage >= 70) letter = "B-";
-          else if (avgPercentage >= 65) letter = "C+";
-          else if (avgPercentage >= 60) letter = "C";
-          else if (avgPercentage >= 55) letter = "C-";
-          else if (avgPercentage >= 50) letter = "D";
-
-          setAverageGrade(letter);
-        }
-      }
-
-      // Fetch assignments
-      const assignmentsRes = await fetch("/api/students/assignments");
-      const assignmentsJson = await assignmentsRes.json();
-      if (assignmentsJson.success && assignmentsJson.assignments) {
-        setAssignmentsData(assignmentsJson.assignments);
-        // Count pending assignments
-        const pending = assignmentsJson.assignments.filter(
-          (a: any) => a.status === "pending" || !a.submitted
-        ).length;
-        setPendingAssignments(pending);
-      }
-
-      // Fetch classes
-      const classesRes = await fetch("/api/students/classes");
-      const classesJson = await classesRes.json();
-      if (classesJson.success && classesJson.classes) {
-        setClassesData(classesJson.classes);
-        setTotalClasses(classesJson.classes.length);
-      }
-    } catch (error) {
-      console.error("Error fetching dashboard data:", error);
-    }
-  };
+  }
 
   const handleLogout = async () => {
-    await fetch("/api/auth/logout", { method: "POST" });
-    router.push("/login");
-  };
+    await fetch('/api/auth/logout', { method: 'POST' })
+    router.push('/login')
+  }
 
-  const initials =
-    user?.first_name && user?.last_name
-      ? `${user.first_name[0]}${user.last_name[0]}`
-      : user?.email?.[0]?.toUpperCase() || "?";
+
+  const initials = user?.first_name && user?.last_name
+    ? `${user.first_name[0]}${user.last_name[0]}`
+    : user?.email?.[0]?.toUpperCase() || '?'
 
   useEffect(() => {
-    if (!openDialog) return;
+    if (!openDialog) return
 
     const fetchData = async () => {
-      setDialogLoading(true);
+      setDialogLoading(true)
       try {
-        if (openDialog === "attendance") {
-          const res = await fetch("/api/students/attendance");
-          const json = await res.json();
-          setAttendanceData(json.attendance || []);
+        if (openDialog === 'attendance') {
+          const res = await fetch('/api/students/attendance')
+          const json = await res.json()
+          setAttendanceData(json.attendance || [])
         }
 
-        if (openDialog === "grades") {
-          const res = await fetch("/api/students/grades");
-          const json = await res.json();
-          setGradesData(json.grades || []);
+        if (openDialog === 'grades') {
+          const res = await fetch('/api/students/grades')
+          const json = await res.json()
+          setGradesData(json.grades || [])
         }
 
-        if (openDialog === "assignments") {
-          const res = await fetch("/api/students/assignments");
-          const json = await res.json();
-          setAssignmentsData(json.assignments || []);
+        if (openDialog === 'assignments') {
+          const res = await fetch('/api/students/assignments')
+          const json = await res.json()
+          setAssignmentsData(json.assignments || [])
         }
 
-        if (openDialog === "classes") {
-          const res = await fetch("/api/students/classes");
-          const json = await res.json();
-          setClassesData(json.classes || []);
+        if (openDialog === 'classes') {
+          const res = await fetch('/api/students/classes')
+          const json = await res.json()
+          setClassesData(json.classes || [])
         }
       } catch (err) {
-        console.error("Failed to fetch dialog data", err);
+        console.error('Failed to fetch dialog data', err)
       } finally {
-        setDialogLoading(false);
+        setDialogLoading(false)
       }
-    };
+    }
 
-    fetchData();
-  }, [openDialog]);
+    fetchData()
+  }, [openDialog])
 
   if (loading) {
     return (
@@ -321,12 +229,8 @@ export default function StudentDashboard() {
               </svg>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold dark:text-white">
-                {attendanceRate}%
-              </div>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                {attendanceData.length} days recorded
-              </p>
+              <div className="text-2xl font-bold dark:text-white">95.5%</div>
+              <p className="text-xs text-gray-500 dark:text-gray-400">+2.5% from last month</p>
             </CardContent>
           </Card>
 
@@ -352,12 +256,8 @@ export default function StudentDashboard() {
               </svg>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold dark:text-white">
-                {averageGrade}
-              </div>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                {gradePercentage}% overall
-              </p>
+              <div className="text-2xl font-bold dark:text-white">A-</div>
+              <p className="text-xs text-gray-500 dark:text-gray-400">85.3% overall</p>
             </CardContent>
           </Card>
 
@@ -384,12 +284,8 @@ export default function StudentDashboard() {
               </svg>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold dark:text-white">
-                {pendingAssignments} Pending
-              </div>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                {assignmentsData.length} total assignments
-              </p>
+              <div className="text-2xl font-bold dark:text-white">3 Pending</div>
+              <p className="text-xs text-gray-500 dark:text-gray-400">2 due this week</p>
             </CardContent>
           </Card>
 
@@ -416,12 +312,8 @@ export default function StudentDashboard() {
               </svg>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold dark:text-white">
-                {totalClasses} Active
-              </div>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                This semester
-              </p>
+              <div className="text-2xl font-bold dark:text-white">6 Active</div>
+              <p className="text-xs text-gray-500 dark:text-gray-400">This semester</p>
             </CardContent>
           </Card>
         </div>
@@ -630,84 +522,47 @@ export default function StudentDashboard() {
           </DialogContent>
         </Dialog>
 
-        <Dialog
-          open={openDialog === "classes"}
-          onOpenChange={(val) => setOpenDialog(val ? "classes" : null)}
-        >
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Active Classes</DialogTitle>
-              <DialogDescription>
-                This semester&apos;s classes
-              </DialogDescription>
-            </DialogHeader>
-            <div className="mt-4 space-y-3">
-              {dialogLoading ? (
-                <div className="text-sm text-gray-500 dark:text-gray-400">
-                  Loading...
-                </div>
-              ) : (
-                (classesData.length
-                  ? classesData
-                  : [
-                      {
-                        subject: "Mathematics",
-                        time: "Mon/Wed 9:00 - 10:00",
-                        teacher: "Dr. Sarah Miller",
-                      },
-                      {
-                        subject: "Physics",
-                        time: "Tue/Thu 10:30 - 11:30",
-                        teacher: "Prof. John Wilson",
-                      },
-                      {
-                        subject: "English",
-                        time: "Mon/Wed 1:00 - 2:00",
-                        teacher: "Ms. Emily Taylor",
-                      },
-                    ]
-                ).map((c: any, i: number) => (
-                  <div
-                    key={i}
-                    className="flex items-center justify-between p-4 border border-border rounded-md dark:bg-[#1a1a1a] dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
-                  >
-                    <div className="flex-1">
-                      <p className="font-medium dark:text-white text-base">
-                        {c.class_name || c.subject || c.subject_name}
-                      </p>
-                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                        {c.time ||
-                          (c.start_time
-                            ? `${c.start_time} - ${c.end_time}`
-                            : "")}{" "}
-                        • {c.teacher_name || c.teacher || c.instructor}
-                      </p>
+          <Dialog open={openDialog === 'classes'} onOpenChange={(val) => setOpenDialog(val ? 'classes' : null)}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Active Classes</DialogTitle>
+                <DialogDescription>This semester's classes</DialogDescription>
+              </DialogHeader>
+              <div className="mt-4 space-y-3">
+                {dialogLoading ? (
+                  <div className="text-sm text-gray-500 dark:text-gray-400">Loading...</div>
+                ) : (
+                  (classesData.length ? classesData : [
+                    { subject: 'Mathematics', time: 'Mon/Wed 9:00 - 10:00', teacher: 'Dr. Sarah Miller' },
+                    { subject: 'Physics', time: 'Tue/Thu 10:30 - 11:30', teacher: 'Prof. John Wilson' },
+                    { subject: 'English', time: 'Mon/Wed 1:00 - 2:00', teacher: 'Ms. Emily Taylor' },
+                  ]).map((c: any, i: number) => (
+                    <div key={i} className="flex items-center justify-between p-4 border border-border rounded-md dark:bg-[#1a1a1a] dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                      <div className="flex-1">
+                        <p className="font-medium dark:text-white text-base">{c.class_name || c.subject || c.subject_name}</p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{c.time || (c.start_time ? `${c.start_time} - ${c.end_time}` : '')} • {c.teacher_name || c.teacher || c.instructor}</p>
+                      </div>
+                      <Button 
+                        size="sm" 
+                        className="ml-4"
+                        onClick={() => {
+                          // Handle join class action - could open a video call link or class page
+                          window.alert(`Joining class: ${c.class_name || c.subject || c.subject_name}`)
+                        }}
+                      >
+                        Join Class
+                      </Button>
                     </div>
-                    <Button
-                      size="sm"
-                      className="ml-4"
-                      onClick={() => {
-                        // Handle join class action - could open a video call link or class page
-                        window.alert(
-                          `Joining class: ${
-                            c.class_name || c.subject || c.subject_name
-                          }`
-                        );
-                      }}
-                    >
-                      Join Class
-                    </Button>
-                  </div>
-                ))
-              )}
-            </div>
-            <DialogFooter className="mt-4">
-              <DialogClose asChild>
-                <Button>Close</Button>
-              </DialogClose>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+                  ))
+                )}
+              </div>
+              <DialogFooter className="mt-4">
+                <DialogClose asChild>
+                  <Button>Close</Button>
+                </DialogClose>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
         {/* Recent Activity */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -720,201 +575,67 @@ export default function StudentDashboard() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {gradesData.length > 0
-                  ? gradesData.slice(0, 3).map((item, i) => {
-                      const percentage =
-                        item.percentage ||
-                        (item.marks_obtained && item.total_marks
-                          ? (item.marks_obtained / item.total_marks) * 100
-                          : 0);
-                      let grade = "F";
-                      if (percentage >= 90) grade = "A";
-                      else if (percentage >= 85) grade = "A-";
-                      else if (percentage >= 80) grade = "B+";
-                      else if (percentage >= 75) grade = "B";
-                      else if (percentage >= 70) grade = "B-";
-                      else if (percentage >= 65) grade = "C+";
-                      else if (percentage >= 60) grade = "C";
-                      else if (percentage >= 50) grade = "D";
-
-                      return (
-                        <div
-                          key={i}
-                          className="flex items-center justify-between"
-                        >
-                          <div>
-                            <p className="font-medium dark:text-white">
-                              {item.subject_name || item.subject || "Subject"}
-                            </p>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                              {item.grade_date
-                                ? new Date(item.grade_date).toLocaleDateString(
-                                    "en-US",
-                                    { month: "short", day: "numeric" }
-                                  )
-                                : "N/A"}
-                            </p>
-                          </div>
-                          <div className="text-right">
-                            <Badge variant="secondary">{grade}</Badge>
-                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                              {item.marks_obtained && item.total_marks
-                                ? `${item.marks_obtained}/${item.total_marks}`
-                                : `${percentage.toFixed(0)}%`}
-                            </p>
-                          </div>
-                        </div>
-                      );
-                    })
-                  : [
-                      {
-                        subject: "Mathematics",
-                        grade: "A",
-                        score: "92/100",
-                        date: "Oct 18",
-                      },
-                      {
-                        subject: "Physics",
-                        grade: "B+",
-                        score: "87/100",
-                        date: "Oct 15",
-                      },
-                      {
-                        subject: "English",
-                        grade: "A-",
-                        score: "88/100",
-                        date: "Oct 12",
-                      },
-                    ].map((item, i) => (
-                      <div
-                        key={i}
-                        className="flex items-center justify-between"
-                      >
-                        <div>
-                          <p className="font-medium dark:text-white">
-                            {item.subject}
-                          </p>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
-                            {item.date}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <Badge variant="secondary">{item.grade}</Badge>
-                          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                            {item.score}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
+                {[
+                  { subject: 'Mathematics', grade: 'A', score: '92/100', date: 'Oct 18' },
+                  { subject: 'Physics', grade: 'B+', score: '87/100', date: 'Oct 15' },
+                  { subject: 'English', grade: 'A-', score: '88/100', date: 'Oct 12' },
+                ].map((item, i) => (
+                  <div key={i} className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium dark:text-white">{item.subject}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">{item.date}</p>
+                    </div>
+                    <div className="text-right">
+                      <Badge variant="secondary">{item.grade}</Badge>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{item.score}</p>
+                    </div>
+                  </div>
+                ))}
               </div>
             </CardContent>
           </Card>
 
           <Card className="dark:bg-[#1a1a1a] dark:border-gray-800">
             <CardHeader>
-              <CardTitle className="dark:text-white">
-                Upcoming Assignments
-              </CardTitle>
-              <CardDescription className="dark:text-gray-400">
-                Don&apos;t forget these deadlines
-              </CardDescription>
+              <CardTitle className="dark:text-white">Upcoming Assignments</CardTitle>
+              <CardDescription className="dark:text-gray-400">Don't forget these deadlines</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {assignmentsData.length > 0
-                  ? assignmentsData.slice(0, 3).map((item, i) => {
-                      const dueDate = item.due_date
-                        ? new Date(item.due_date)
-                        : null;
-                      const now = new Date();
-                      const daysUntilDue = dueDate
-                        ? Math.ceil(
-                            (dueDate.getTime() - now.getTime()) /
-                              (1000 * 60 * 60 * 24)
-                          )
-                        : 999;
-                      const isUrgent = daysUntilDue <= 2;
-
-                      return (
-                        <div
-                          key={i}
-                          className="flex items-center justify-between"
-                        >
-                          <div>
-                            <p className="font-medium dark:text-white">
-                              {item.title ||
-                                item.assignment_title ||
-                                "Assignment"}
-                            </p>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                              {item.subject_name || item.subject || "Subject"}
-                            </p>
-                          </div>
-                          <div className="text-right">
-                            <Badge
-                              variant={isUrgent ? "destructive" : "outline"}
-                            >
-                              {dueDate
-                                ? dueDate.toLocaleDateString("en-US", {
-                                    month: "short",
-                                    day: "numeric",
-                                  })
-                                : "No due date"}
-                            </Badge>
-                          </div>
-                        </div>
-                      );
-                    })
-                  : [
-                      {
-                        title: "Chemistry Lab Report",
-                        subject: "Chemistry",
-                        due: "Oct 23",
-                        status: "urgent",
-                      },
-                      {
-                        title: "History Essay",
-                        subject: "History",
-                        due: "Oct 25",
-                        status: "soon",
-                      },
-                      {
-                        title: "Math Problem Set",
-                        subject: "Mathematics",
-                        due: "Oct 28",
-                        status: "normal",
-                      },
-                    ].map((item, i) => (
-                      <div
-                        key={i}
-                        className="flex items-center justify-between"
-                      >
-                        <div>
-                          <p className="font-medium dark:text-white">
-                            {item.title}
-                          </p>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
-                            {item.subject}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <Badge
-                            variant={
-                              item.status === "urgent"
-                                ? "destructive"
-                                : "outline"
-                            }
-                          >
-                            {item.due}
-                          </Badge>
-                        </div>
-                      </div>
-                    ))}
+                {[
+                  { title: 'Chemistry Lab Report', subject: 'Chemistry', due: 'Oct 23', status: 'urgent' },
+                  { title: 'History Essay', subject: 'History', due: 'Oct 25', status: 'soon' },
+                  { title: 'Math Problem Set', subject: 'Mathematics', due: 'Oct 28', status: 'normal' },
+                ].map((item, i) => (
+                  <div key={i} className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium dark:text-white">{item.title}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">{item.subject}</p>
+                    </div>
+                    <div className="text-right">
+                      <Badge variant={item.status === 'urgent' ? 'destructive' : 'outline'}>
+                        {item.due}
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
               </div>
             </CardContent>
           </Card>
         </div>
       </main>
+
+      <JoinClassDialog
+        open={joinDialogOpen}
+        onOpenChange={setJoinDialogOpen}
+        studentId={user?.id || ""}
+        onSuccess={() => {
+          // Refresh classes data when dialog is open
+          if (openDialog === "classes") {
+            fetchDialogData("classes");
+          }
+        }}
+      />
     </div>
   );
 }

@@ -1,19 +1,20 @@
-import { createAdminClient } from '@/lib/supabase/admin'
-import { supabaseAdmin } from '@/lib/backend/config/supabase'
-import { NextResponse } from 'next/server'
+import { createAdminClient } from "@/lib/supabase/admin";
+import { supabaseAdmin } from "@/lib/backend/config/supabase";
+import { NextResponse } from "next/server";
 
 export async function GET(
   request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
-    const supabase = createAdminClient()
-    const { id } = params
+    const supabase = createAdminClient();
+    const { id } = params;
 
     // Select student and join user_profiles to include name/phone
     const { data: studentRaw, error } = await supabase
-      .from('students')
-      .select(`
+      .from("students")
+      .select(
+        `
         id,
         student_code,
         enrollment_status,
@@ -33,26 +34,30 @@ export async function GET(
           phone,
           email
         )
-      `)
-      .eq('id', id)
-      .single()
+      `
+      )
+      .eq("id", id)
+      .single();
 
     if (error) {
-      console.error('Error fetching student:', error)
+      console.error("Error fetching student:", error);
       return NextResponse.json(
         { success: false, error: error.message },
         { status: 500 }
-      )
+      );
     }
 
     if (!studentRaw) {
-      return NextResponse.json({ success: false, error: 'Student not found' }, { status: 404 })
+      return NextResponse.json(
+        { success: false, error: "Student not found" },
+        { status: 404 }
+      );
     }
 
     // Flatten the joined profile to match list shape
     const profile = Array.isArray(studentRaw.user_profiles)
       ? studentRaw.user_profiles[0]
-      : studentRaw.user_profiles
+      : studentRaw.user_profiles;
 
     const student = {
       id: studentRaw.id,
@@ -72,15 +77,15 @@ export async function GET(
       medical_notes: studentRaw.medical_notes,
       class_id: studentRaw.class_id,
       created_at: studentRaw.created_at,
-    }
+    };
 
-    return NextResponse.json({ success: true, student })
+    return NextResponse.json({ success: true, student });
   } catch (error: any) {
-    console.error('Unexpected error:', error)
+    console.error("Unexpected error:", error);
     return NextResponse.json(
-      { success: false, error: error.message || 'Internal server error' },
+      { success: false, error: error.message || "Internal server error" },
       { status: 500 }
-    )
+    );
   }
 }
 
@@ -89,35 +94,35 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
-    const supabase = createAdminClient()
-    const { id } = params
-    const body = await request.json()
+    const supabase = createAdminClient();
+    const { id } = params;
+    const body = await request.json();
 
     const { data: student, error } = await supabase
-      .from('students')
+      .from("students")
       .update(body)
-      .eq('id', id)
+      .eq("id", id)
       .select()
-      .single()
+      .single();
 
     if (error) {
-      console.error('Error updating student:', error)
+      console.error("Error updating student:", error);
       return NextResponse.json(
         { success: false, error: error.message },
         { status: 500 }
-      )
+      );
     }
 
     return NextResponse.json({
       success: true,
       student,
-    })
+    });
   } catch (error: any) {
-    console.error('Unexpected error:', error)
+    console.error("Unexpected error:", error);
     return NextResponse.json(
-      { success: false, error: error.message || 'Internal server error' },
+      { success: false, error: error.message || "Internal server error" },
       { status: 500 }
-    )
+    );
   }
 }
 
@@ -126,71 +131,72 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-  const supabase = createAdminClient()
-    const { id } = params
+    const supabase = createAdminClient();
+    const { id } = params;
 
     // First, get the student to find the user_id
     const { data: student, error: fetchError } = await supabase
-      .from('students')
-      .select('user_id')
-      .eq('id', id)
-      .single()
+      .from("students")
+      .select("user_id")
+      .eq("id", id)
+      .single();
 
     if (fetchError || !student) {
       return NextResponse.json(
-        { success: false, error: 'Student not found' },
+        { success: false, error: "Student not found" },
         { status: 404 }
-      )
+      );
     }
 
     // Delete from students table (this will cascade to parent_student_links)
     const { error: deleteStudentError } = await supabaseAdmin
-      .from('students')
+      .from("students")
       .delete()
-      .eq('id', id)
+      .eq("id", id);
 
     if (deleteStudentError) {
-      console.error('Error deleting student record:', deleteStudentError)
+      console.error("Error deleting student record:", deleteStudentError);
       return NextResponse.json(
         { success: false, error: deleteStudentError.message },
         { status: 500 }
-      )
+      );
     }
 
     // Delete user profile (this will cascade to related tables)
     const { error: deleteProfileError } = await supabaseAdmin
-      .from('user_profiles')
+      .from("user_profiles")
       .delete()
-      .eq('id', student.user_id)
+      .eq("id", student.user_id);
 
     if (deleteProfileError) {
-      console.error('Error deleting user profile:', deleteProfileError)
+      console.error("Error deleting user profile:", deleteProfileError);
       return NextResponse.json(
         { success: false, error: deleteProfileError.message },
         { status: 500 }
-      )
+      );
     }
 
     // Delete auth user using admin API
-    const { error: deleteAuthError } = await supabaseAdmin.auth.admin.deleteUser(
-      student.user_id
-    )
+    const { error: deleteAuthError } =
+      await supabaseAdmin.auth.admin.deleteUser(student.user_id);
 
     if (deleteAuthError) {
-      console.error('Error deleting auth user:', deleteAuthError)
+      console.error("Error deleting auth user:", deleteAuthError);
       // Don't fail here since the database records are already deleted
-      console.warn('Auth user deletion failed but database records were cleaned up')
+      console.warn(
+        "Auth user deletion failed but database records were cleaned up"
+      );
     }
 
     return NextResponse.json({
       success: true,
-      message: 'Student deleted successfully',
-    })
+      message: "Student deleted successfully",
+    });
   } catch (error: any) {
-    console.error('Unexpected error:', error)
+    console.error("Unexpected error:", error);
     return NextResponse.json(
-      { success: false, error: error.message || 'Internal server error' },
+      { success: false, error: error.message || "Internal server error" },
       { status: 500 }
-    )
+    );
   }
 }

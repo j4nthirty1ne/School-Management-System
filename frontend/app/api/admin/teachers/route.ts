@@ -1,30 +1,36 @@
-import { createAdminClient } from '@/lib/supabase/admin'
-import { NextResponse } from 'next/server'
+import { createAdminClient } from "@/lib/supabase/admin";
+import { NextResponse } from "next/server";
 
 export async function GET() {
   try {
-    let supabase
-    
+    let supabase;
+
     try {
-      supabase = createAdminClient()
+      supabase = createAdminClient();
     } catch (err: any) {
       // Development fallback
-      if (process.env.NODE_ENV === 'development') {
+      if (process.env.NODE_ENV === "development") {
         return NextResponse.json({
           success: true,
           teachers: [],
           count: 0,
-        })
+        });
       }
-      return NextResponse.json({ success: false, error: err.message }, { status: 500 })
+      return NextResponse.json(
+        { success: false, error: err.message },
+        { status: 500 }
+      );
     }
 
     // Fetch teachers from Supabase with user profile join
     const { data: teachers, error } = await supabase
-      .from('teachers')
-      .select(`
+      .from("teachers")
+      .select(
+        `
         id,
         teacher_code,
+        subject_specialization,
+        qualification,
         hire_date,
         status,
         created_at,
@@ -34,15 +40,16 @@ export async function GET() {
           phone,
           id
         )
-      `)
-      .order('created_at', { ascending: false })
+      `
+      )
+      .order("created_at", { ascending: false });
 
     if (error) {
-      console.error('Error fetching teachers:', error)
+      console.error("Error fetching teachers:", error);
       return NextResponse.json(
         { success: false, error: error.message },
         { status: 500 }
-      )
+      );
     }
 
     // Transform the data to flatten user_profiles
@@ -53,23 +60,23 @@ export async function GET() {
       last_name: teacher.user_profiles?.last_name,
       phone: teacher.user_profiles?.phone,
       user_id: teacher.user_profiles?.id,
-      subject_specialization: '', // Column doesn't exist in database yet
-      qualification: '', // Column doesn't exist in database yet
+      subject_specialization: teacher.subject_specialization || "",
+      qualification: teacher.qualification || "",
       hire_date: teacher.hire_date,
       status: teacher.status,
       created_at: teacher.created_at,
-    }))
+    }));
 
     return NextResponse.json({
       success: true,
       teachers: transformedTeachers || [],
       count: transformedTeachers?.length || 0,
-    })
+    });
   } catch (error: any) {
-    console.error('Unexpected error:', error)
+    console.error("Unexpected error:", error);
     return NextResponse.json(
-      { success: false, error: error.message || 'Internal server error' },
+      { success: false, error: error.message || "Internal server error" },
       { status: 500 }
-    )
+    );
   }
 }

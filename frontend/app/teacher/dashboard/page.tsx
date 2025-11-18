@@ -188,14 +188,29 @@ export default function TeacherDashboard() {
   const [uploadingFile, setUploadingFile] = useState(false);
 
   // View Assignments state
-  const [showViewAssignmentsDialog, setShowViewAssignmentsDialog] = useState(false);
+  const [showViewAssignmentsDialog, setShowViewAssignmentsDialog] =
+    useState(false);
   const [assignments, setAssignments] = useState<any[]>([]);
   const [loadingAssignments, setLoadingAssignments] = useState(false);
+
+  // Grade Assignment state
+  const [showGradeAssignmentDialog, setShowGradeAssignmentDialog] =
+    useState(false);
+  const [selectedAssignment, setSelectedAssignment] = useState<any>(null);
+  const [assignmentStudents, setAssignmentStudents] = useState<Student[]>([]);
+  const [loadingAssignmentStudents, setLoadingAssignmentStudents] =
+    useState(false);
+  const [assignmentGrades, setAssignmentGrades] = useState<Map<string, string>>(
+    new Map()
+  );
+  const [submittingAssignmentGrades, setSubmittingAssignmentGrades] =
+    useState(false);
 
   // Stats state
   const [totalStudents, setTotalStudents] = useState(0);
   const [classesThisWeek, setClassesThisWeek] = useState(0);
   const [pendingGrades, setPendingGrades] = useState(0);
+  const [assignmentsCount, setAssignmentsCount] = useState(0);
 
   // Add a refresh key to force re-renders
   const [refreshKey, setRefreshKey] = useState(0);
@@ -246,6 +261,17 @@ export default function TeacherDashboard() {
     // Calculate pending grades (classes without recent grades)
     // For now, we'll just use a simple count based on classes
     setPendingGrades(classes.length);
+
+    // Fetch assignments count
+    try {
+      const assignmentsResponse = await fetch("/api/assignments");
+      const assignmentsData = await assignmentsResponse.json();
+      if (assignmentsData.success) {
+        setAssignmentsCount(assignmentsData.assignments?.length || 0);
+      }
+    } catch (error) {
+      console.error("Error fetching assignments count:", error);
+    }
   };
 
   const fetchTeacherData = async () => {
@@ -463,7 +489,7 @@ export default function TeacherDashboard() {
       subject_id: classItem.subject_id || "",
       academic_year: classItem.academic_year,
       room_number: classItem.room_number || "",
-      capacity: classItem.capacity.toString(),
+      capacity: classItem.capacity ? classItem.capacity.toString() : "",
       day_of_week: classItem.day_of_week || "",
       start_time: classItem.start_time || "",
       end_time: classItem.end_time || "",
@@ -878,7 +904,7 @@ export default function TeacherDashboard() {
       subject_id: classItem.subject_id || "",
       academic_year: classItem.academic_year,
       room_number: classItem.room_number || "",
-      capacity: classItem.capacity.toString(),
+      capacity: classItem.capacity ? classItem.capacity.toString() : "",
       day_of_week: classItem.day_of_week || "",
       start_time: classItem.start_time || "",
       end_time: classItem.end_time || "",
@@ -995,16 +1021,16 @@ export default function TeacherDashboard() {
   const fetchAssignments = async () => {
     setLoadingAssignments(true);
     try {
-      const response = await fetch('/api/assignments');
+      const response = await fetch("/api/assignments");
       const data = await response.json();
-      
+
       if (data.success) {
         setAssignments(data.assignments || []);
       } else {
-        console.error('Failed to fetch assignments:', data.error);
+        console.error("Failed to fetch assignments:", data.error);
       }
     } catch (error) {
-      console.error('Error fetching assignments:', error);
+      console.error("Error fetching assignments:", error);
     } finally {
       setLoadingAssignments(false);
     }
@@ -1013,6 +1039,93 @@ export default function TeacherDashboard() {
   const openViewAssignmentsDialog = () => {
     setShowViewAssignmentsDialog(true);
     fetchAssignments();
+  };
+
+  const openGradeAssignmentDialog = async (assignment: any) => {
+    setSelectedAssignment(assignment);
+    setShowGradeAssignmentDialog(true);
+    setLoadingAssignmentStudents(true);
+    setError("");
+
+    try {
+      // Fetch students from the class
+      const response = await fetch(
+        `/api/classes/${assignment.class_id}/students`
+      );
+      const data = await response.json();
+
+      if (data.success) {
+        setAssignmentStudents(data.students);
+        // Initialize grades map
+        setAssignmentGrades(new Map());
+      } else {
+        setError(data.error || "Failed to fetch students");
+      }
+    } catch (error) {
+      setError("An error occurred while fetching students");
+      console.error("Error fetching students:", error);
+    } finally {
+      setLoadingAssignmentStudents(false);
+    }
+  };
+
+  const handleSubmitAssignmentGrades = async () => {
+    if (!selectedAssignment) {
+      setError("No assignment selected");
+      return;
+    }
+
+    // Check if at least one grade is entered
+    if (assignmentGrades.size === 0) {
+      setError("Please enter at least one grade");
+      return;
+    }
+
+    setSubmittingAssignmentGrades(true);
+    setError("");
+
+    try {
+      const gradesArray = Array.from(assignmentGrades.entries()).map(
+        ([student_id, score]) => ({
+          student_id,
+          score: parseFloat(score) || 0,
+        })
+      );
+
+      const response = await fetch("/api/grades", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          class_id: selectedAssignment.class_id,
+          assignment_id: selectedAssignment.id,
+          grade_type: selectedAssignment.type,
+          max_score: selectedAssignment.max_score,
+          grade_date: new Date().toISOString().split("T")[0],
+          notes: `Grade for ${selectedAssignment.title}`,
+          grades: gradesArray,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setSuccess(`Grades submitted successfully for ${data.count} students!`);
+        // Reset form
+        setAssignmentGrades(new Map());
+        setTimeout(() => {
+          setShowGradeAssignmentDialog(false);
+          setSelectedAssignment(null);
+          setSuccess("");
+        }, 2000);
+      } else {
+        setError(data.error || "Failed to submit grades");
+      }
+    } catch (error) {
+      setError("An error occurred while submitting grades");
+      console.error("Error submitting grades:", error);
+    } finally {
+      setSubmittingAssignmentGrades(false);
+    }
   };
 
   const handleSubmitAssignment = async (e: React.FormEvent) => {
@@ -1200,26 +1313,34 @@ export default function TeacherDashboard() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card
+            className="cursor-pointer hover:bg-muted/50 transition-colors"
+            onClick={() => router.push("/teacher/timetable")}
+          >
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium">This Week</CardTitle>
               <Calendar className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{classesThisWeek}</div>
-              <p className="text-xs text-muted-foreground">Classes scheduled</p>
+              <p className="text-xs text-muted-foreground">
+                Classes scheduled • Click to view timetable
+              </p>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card
+            className="cursor-pointer hover:bg-muted/50 transition-colors"
+            onClick={openViewAssignmentsDialog}
+          >
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Pending</CardTitle>
+              <CardTitle className="text-sm font-medium">Assignments</CardTitle>
               <FileText className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{pendingGrades}</div>
+              <div className="text-2xl font-bold">{assignmentsCount}</div>
               <p className="text-xs text-muted-foreground">
-                Assignments to grade
+                Total assignments • Click to view
               </p>
             </CardContent>
           </Card>
@@ -3078,7 +3199,10 @@ export default function TeacherDashboard() {
       </Dialog>
 
       {/* View Assignments Dialog */}
-      <Dialog open={showViewAssignmentsDialog} onOpenChange={setShowViewAssignmentsDialog}>
+      <Dialog
+        open={showViewAssignmentsDialog}
+        onOpenChange={setShowViewAssignmentsDialog}
+      >
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>All Assignments & Quizzes</DialogTitle>
@@ -3086,17 +3210,21 @@ export default function TeacherDashboard() {
               View and manage all assignments and quizzes you&apos;ve created
             </DialogDescription>
           </DialogHeader>
-          
+
           {loadingAssignments ? (
             <div className="py-8 text-center">
-              <div className="text-muted-foreground">Loading assignments...</div>
+              <div className="text-muted-foreground">
+                Loading assignments...
+              </div>
             </div>
           ) : assignments.length === 0 ? (
             <div className="py-8 text-center">
               <FileText className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-              <p className="text-muted-foreground">No assignments created yet</p>
-              <Button 
-                variant="outline" 
+              <p className="text-muted-foreground">
+                No assignments created yet
+              </p>
+              <Button
+                variant="outline"
                 className="mt-4"
                 onClick={() => {
                   setShowViewAssignmentsDialog(false);
@@ -3110,42 +3238,60 @@ export default function TeacherDashboard() {
           ) : (
             <div className="space-y-4">
               {assignments.map((assignment) => {
-                const classInfo = classes.find(c => c.id === assignment.class_id);
-                const dueDate = assignment.due_date ? new Date(assignment.due_date) : null;
+                const classInfo = classes.find(
+                  (c) => c.id === assignment.class_id
+                );
+                const dueDate = assignment.due_date
+                  ? new Date(assignment.due_date)
+                  : null;
                 const isOverdue = dueDate && dueDate < new Date();
-                
+
                 return (
                   <Card key={assignment.id}>
                     <CardContent className="pt-6">
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-2">
-                            <Badge variant={assignment.type === 'quiz' ? 'default' : 'secondary'}>
+                            <Badge
+                              variant={
+                                assignment.type === "quiz"
+                                  ? "default"
+                                  : "secondary"
+                              }
+                            >
                               {assignment.type}
                             </Badge>
                             {classInfo && (
                               <Badge variant="outline">
-                                {classInfo.subject_name} ({classInfo.subject_code})
+                                {classInfo.subject_name} (
+                                {classInfo.subject_code})
                               </Badge>
                             )}
                             {isOverdue && (
                               <Badge variant="destructive">Overdue</Badge>
                             )}
                           </div>
-                          
-                          <h3 className="font-semibold text-lg mb-1">{assignment.title}</h3>
-                          
+
+                          <h3 className="font-semibold text-lg mb-1">
+                            {assignment.title}
+                          </h3>
+
                           {assignment.description && (
                             <p className="text-sm text-muted-foreground mb-3">
                               {assignment.description}
                             </p>
                           )}
-                          
+
                           <div className="grid grid-cols-2 gap-2 text-sm">
                             {assignment.due_date && (
                               <div className="flex items-center gap-1">
                                 <Calendar className="h-4 w-4 text-muted-foreground" />
-                                <span>Due: {new Date(assignment.due_date).toLocaleDateString()}</span>
+                                <span>
+                                  Due:{" "}
+                                  {new Date(
+                                    assignment.due_date
+                                  ).toLocaleDateString()}
+                                </span>
                               </div>
                             )}
                             <div className="flex items-center gap-1">
@@ -3153,42 +3299,49 @@ export default function TeacherDashboard() {
                               <span>Max Score: {assignment.max_score}</span>
                             </div>
                           </div>
-                          
+
                           {assignment.instructions && (
                             <p className="text-sm mt-2 text-muted-foreground">
-                              <strong>Instructions:</strong> {assignment.instructions}
+                              <strong>Instructions:</strong>{" "}
+                              {assignment.instructions}
                             </p>
                           )}
-                          
+
                           {assignment.file_url && (
                             <div className="mt-3 flex items-center gap-2 p-2 bg-muted rounded">
                               <FileText className="h-4 w-4" />
-                              <a 
-                                href={assignment.file_url} 
-                                target="_blank" 
+                              <a
+                                href={assignment.file_url}
+                                target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-sm text-primary hover:underline flex-1 truncate"
                               >
-                                {assignment.file_name || 'Download attachment'}
+                                {assignment.file_name || "Download attachment"}
                               </a>
                             </div>
                           )}
                         </div>
-                        
+
                         <div className="ml-4 flex gap-2">
                           <Button
-                            variant="ghost"
+                            variant="outline"
                             size="sm"
-                            onClick={() => window.open(assignment.file_url, '_blank')}
-                            disabled={!assignment.file_url}
+                            onClick={() => {
+                              setShowViewAssignmentsDialog(false);
+                              openGradeAssignmentDialog(assignment);
+                            }}
                           >
-                            View
+                            <FileText className="h-4 w-4 mr-2" />
+                            Grade Students
                           </Button>
                         </div>
                       </div>
-                      
+
                       <div className="mt-3 pt-3 border-t text-xs text-muted-foreground">
-                        Created {new Date(assignment.created_at).toLocaleDateString()} at {new Date(assignment.created_at).toLocaleTimeString()}
+                        Created{" "}
+                        {new Date(assignment.created_at).toLocaleDateString()}{" "}
+                        at{" "}
+                        {new Date(assignment.created_at).toLocaleTimeString()}
                       </div>
                     </CardContent>
                   </Card>
@@ -3196,13 +3349,167 @@ export default function TeacherDashboard() {
               })}
             </div>
           )}
-          
+
           <DialogFooter>
             <Button
               variant="outline"
               onClick={() => setShowViewAssignmentsDialog(false)}
             >
               Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Grade Assignment Dialog */}
+      <Dialog
+        open={showGradeAssignmentDialog}
+        onOpenChange={setShowGradeAssignmentDialog}
+      >
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Grade Assignment</DialogTitle>
+            <DialogDescription>
+              {selectedAssignment && (
+                <>
+                  Enter grades for &quot;{selectedAssignment.title}&quot; - Max
+                  Score: {selectedAssignment.max_score}
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6">
+            {loadingAssignmentStudents ? (
+              <div className="text-center py-8">
+                <div className="text-muted-foreground">Loading students...</div>
+              </div>
+            ) : assignmentStudents.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground">
+                  No students enrolled in this class
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="rounded-md border">
+                  <table className="w-full">
+                    <thead className="bg-muted">
+                      <tr>
+                        <th className="p-3 text-left font-medium">
+                          Student ID
+                        </th>
+                        <th className="p-3 text-left font-medium">Name</th>
+                        <th className="p-3 text-left font-medium">Email</th>
+                        <th className="p-3 text-right font-medium">
+                          Grade (out of {selectedAssignment?.max_score})
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {assignmentStudents.map((student, index) => (
+                        <tr
+                          key={student.id}
+                          className={
+                            index % 2 === 0 ? "bg-background" : "bg-muted/30"
+                          }
+                        >
+                          <td className="p-3">{student.student_id}</td>
+                          <td className="p-3">
+                            {student.first_name} {student.last_name}
+                          </td>
+                          <td className="p-3 text-sm text-muted-foreground">
+                            {student.email}
+                          </td>
+                          <td className="p-3">
+                            <Input
+                              type="number"
+                              min="0"
+                              max={selectedAssignment?.max_score || 100}
+                              step="0.5"
+                              placeholder="Enter grade"
+                              value={assignmentGrades.get(student.id) || ""}
+                              onChange={(e) => {
+                                const newGrades = new Map(assignmentGrades);
+                                if (e.target.value === "") {
+                                  newGrades.delete(student.id);
+                                } else {
+                                  newGrades.set(student.id, e.target.value);
+                                }
+                                setAssignmentGrades(newGrades);
+                              }}
+                              className="text-right"
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="flex items-center justify-between p-3 bg-muted rounded">
+                  <span className="text-sm font-medium">
+                    Grades entered: {assignmentGrades.size} /{" "}
+                    {assignmentStudents.length}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const newGrades = new Map();
+                      assignmentStudents.forEach((student) => {
+                        newGrades.set(
+                          student.id,
+                          selectedAssignment?.max_score.toString() || "100"
+                        );
+                      });
+                      setAssignmentGrades(newGrades);
+                    }}
+                  >
+                    Set All to Max Score
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
+            {success && (
+              <Alert className="bg-green-50 border-green-200">
+                <AlertDescription className="text-green-900">
+                  {success}
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowGradeAssignmentDialog(false);
+                setSelectedAssignment(null);
+                setAssignmentGrades(new Map());
+                setError("");
+                setSuccess("");
+              }}
+              disabled={submittingAssignmentGrades}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSubmitAssignmentGrades}
+              disabled={
+                submittingAssignmentGrades ||
+                assignmentGrades.size === 0 ||
+                !selectedAssignment
+              }
+            >
+              {submittingAssignmentGrades ? "Submitting..." : "Submit Grades"}
             </Button>
           </DialogFooter>
         </DialogContent>
