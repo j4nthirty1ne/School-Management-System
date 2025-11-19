@@ -29,27 +29,50 @@ export async function GET() {
       });
     }
 
-    // Get teacher record for current user
-    const { data: teacher } = await supabase
-      .from("teachers")
-      .select("id")
-      .eq("user_id", currentUser.id)
+    // Get user profile to check role
+    const { data: userProfile } = await supabase
+      .from("user_profiles")
+      .select("role")
+      .eq("id", currentUser.id)
       .single();
 
-    if (!teacher) {
-      return NextResponse.json({
-        success: true,
-        classes: [],
-        count: 0,
-      });
-    }
+    let classes;
+    let error;
 
-    // Get only classes belonging to this teacher
-    let { data: classes, error } = await supabase
-      .from("classes")
-      .select("*")
-      .eq("teacher_id", teacher.id)
-      .order("created_at", { ascending: false });
+    // If admin, get all classes; if teacher, get only their classes
+    if (userProfile?.role === "admin") {
+      // Admin sees all classes
+      const result = await supabase
+        .from("classes")
+        .select("*")
+        .order("created_at", { ascending: false });
+      classes = result.data;
+      error = result.error;
+    } else {
+      // Get teacher record for current user
+      const { data: teacher } = await supabase
+        .from("teachers")
+        .select("id")
+        .eq("user_id", currentUser.id)
+        .single();
+
+      if (!teacher) {
+        return NextResponse.json({
+          success: true,
+          classes: [],
+          count: 0,
+        });
+      }
+
+      // Get only classes belonging to this teacher
+      const result = await supabase
+        .from("classes")
+        .select("*")
+        .eq("teacher_id", teacher.id)
+        .order("created_at", { ascending: false });
+      classes = result.data;
+      error = result.error;
+    }
 
     if (error) {
       console.error("Error fetching classes:", error);
@@ -139,21 +162,53 @@ export async function POST(request: Request) {
       );
     }
 
-    // Get teacher record for current user
-    const { data: teacher } = await supabase
-      .from("teachers")
-      .select("id")
-      .eq("user_id", currentUser.id)
+    const body = await request.json();
+
+    console.log("POST /api/classes - Request body:", body);
+
+    // Get user profile to check role
+    const { data: userProfile } = await supabase
+      .from("user_profiles")
+      .select("role")
+      .eq("id", currentUser.id)
       .single();
 
-    if (!teacher) {
-      return NextResponse.json(
-        { success: false, error: "Teacher record not found" },
-        { status: 403 }
-      );
+    console.log("User profile:", userProfile);
+
+    let teacherId;
+
+    // If admin, use the teacher_id from the request body
+    // If teacher, use their own teacher record
+    if (userProfile?.role === "admin") {
+      console.log("User is admin, teacher_id from body:", body.teacher_id);
+      if (!body.teacher_id) {
+        console.error("Admin user did not provide teacher_id");
+        return NextResponse.json(
+          { success: false, error: "Teacher ID is required for admin users" },
+          { status: 400 }
+        );
+      }
+      teacherId = body.teacher_id;
+    } else {
+      console.log("User is not admin, looking up teacher record");
+      // Get teacher record for current user
+      const { data: teacher } = await supabase
+        .from("teachers")
+        .select("id")
+        .eq("user_id", currentUser.id)
+        .single();
+
+      if (!teacher) {
+        console.error("Teacher record not found for user:", currentUser.id);
+        return NextResponse.json(
+          { success: false, error: "Teacher record not found" },
+          { status: 403 }
+        );
+      }
+      teacherId = teacher.id;
     }
 
-    const body = await request.json();
+    console.log("Using teacher_id:", teacherId);
 
     // Generate a unique 6-character subject code
     const generateSubjectCode = () => {
@@ -213,9 +268,8 @@ export async function POST(request: Request) {
         subject_code: subjectCode,
         subject_id: body.subject_id || null,
         academic_year: body.academic_year,
-        teacher_id: teacher.id,
+        teacher_id: teacherId,
         room_number: body.room_number || null,
-        capacity: body.capacity,
         day_of_week: body.day_of_week || null,
         start_time: body.start_time || null,
         end_time: body.end_time || null,
@@ -269,20 +323,6 @@ export async function PATCH(request: Request) {
       );
     }
 
-    // Get teacher record for current user
-    const { data: teacher } = await supabase
-      .from("teachers")
-      .select("id")
-      .eq("user_id", currentUser.id)
-      .single();
-
-    if (!teacher) {
-      return NextResponse.json(
-        { success: false, error: "Teacher record not found" },
-        { status: 403 }
-      );
-    }
-
     const body = await request.json();
     const { id, ...updateData } = body;
 
@@ -293,18 +333,41 @@ export async function PATCH(request: Request) {
       );
     }
 
-    // Verify the class belongs to this teacher
-    const { data: existingClass } = await supabase
-      .from("classes")
-      .select("teacher_id")
-      .eq("id", id)
+    // Get user profile to check role
+    const { data: userProfile } = await supabase
+      .from("user_profiles")
+      .select("role")
+      .eq("id", currentUser.id)
       .single();
 
-    if (!existingClass || existingClass.teacher_id !== teacher.id) {
-      return NextResponse.json(
-        { success: false, error: "You can only edit your own classes" },
-        { status: 403 }
-      );
+    // If not admin, verify the class belongs to this teacher
+    if (userProfile?.role !== "admin") {
+      const { data: teacher } = await supabase
+        .from("teachers")
+        .select("id")
+        .eq("user_id", currentUser.id)
+        .single();
+
+      if (!teacher) {
+        return NextResponse.json(
+          { success: false, error: "Teacher record not found" },
+          { status: 403 }
+        );
+      }
+
+      // Verify the class belongs to this teacher
+      const { data: existingClass } = await supabase
+        .from("classes")
+        .select("teacher_id")
+        .eq("id", id)
+        .single();
+
+      if (!existingClass || existingClass.teacher_id !== teacher.id) {
+        return NextResponse.json(
+          { success: false, error: "You can only edit your own classes" },
+          { status: 403 }
+        );
+      }
     }
 
     // Check for room conflict (same room, same day, overlapping time)
@@ -354,7 +417,6 @@ export async function PATCH(request: Request) {
         subject_id: updateData.subject_id || null,
         academic_year: updateData.academic_year,
         room_number: updateData.room_number || null,
-        capacity: updateData.capacity,
         day_of_week: updateData.day_of_week || null,
         start_time: updateData.start_time || null,
         end_time: updateData.end_time || null,

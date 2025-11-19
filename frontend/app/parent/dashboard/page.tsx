@@ -1,12 +1,18 @@
-'use client'
+"use client";
 
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Badge } from '@/components/ui/badge'
-import { ThemeToggle } from '@/components/theme-toggle'
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { ThemeToggle } from "@/components/theme-toggle";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,60 +20,61 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { User, BookOpen, Calendar, TrendingUp, LogOut } from 'lucide-react'
+} from "@/components/ui/dropdown-menu";
+import { User, BookOpen, Calendar, TrendingUp, LogOut } from "lucide-react";
 
 interface UserProfile {
-  id: string
-  email: string
-  role: string
-  first_name?: string
-  last_name?: string
+  id: string;
+  email: string;
+  role: string;
+  first_name?: string;
+  last_name?: string;
 }
 
 export default function ParentDashboard() {
-  const router = useRouter()
-  const [user, setUser] = useState<UserProfile | null>(null)
-  const [loading, setLoading] = useState(true)
+  const router = useRouter();
+  const [user, setUser] = useState<UserProfile | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchUser()
-  }, [])
+    fetchUser();
+  }, []);
 
   const fetchUser = async () => {
     try {
-      const response = await fetch('/api/auth/user')
-      const data = await response.json()
-      
+      const response = await fetch("/api/auth/user");
+      const data = await response.json();
+
       if (data.success && data.user) {
-        setUser(data.user)
+        setUser(data.user);
       } else {
-        router.push('/login')
+        router.push("/login");
       }
     } catch (error) {
-      console.error('Error fetching user data:', error)
-      router.push('/login')
+      console.error("Error fetching user data:", error);
+      router.push("/login");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleLogout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST' })
-    router.push('/login')
-  }
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.push("/login");
+  };
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-lg">Loading...</div>
       </div>
-    )
+    );
   }
 
-  const initials = user?.first_name && user?.last_name
-    ? `${user.first_name[0]}${user.last_name[0]}`
-    : user?.email?.[0]?.toUpperCase() || '?'
+  const initials =
+    user?.first_name && user?.last_name
+      ? `${user.first_name[0]}${user.last_name[0]}`
+      : user?.email?.[0]?.toUpperCase() || "?";
 
   return (
     <div className="min-h-screen bg-background">
@@ -80,17 +87,20 @@ export default function ParentDashboard() {
               Welcome, {user?.first_name} {user?.last_name}
             </p>
           </div>
-          
+
           <div className="flex items-center gap-4">
             <Badge variant="secondary" className="capitalize">
-              {user?.role || 'Parent'}
+              {user?.role || "Parent"}
             </Badge>
 
             <ThemeToggle />
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="relative h-10 w-10 rounded-full">
+                <Button
+                  variant="ghost"
+                  className="relative h-10 w-10 rounded-full"
+                >
                   <Avatar>
                     <AvatarImage src="" alt={user?.email} />
                     <AvatarFallback>{initials}</AvatarFallback>
@@ -107,11 +117,16 @@ export default function ParentDashboard() {
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => router.push('/parent/profile')}>
+                <DropdownMenuItem
+                  onClick={() => router.push("/parent/profile")}
+                >
                   Profile Settings
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleLogout} className="text-red-600">
+                <DropdownMenuItem
+                  onClick={handleLogout}
+                  className="text-red-600"
+                >
                   Logout
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -130,7 +145,9 @@ export default function ParentDashboard() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">2</div>
-              <p className="text-xs text-muted-foreground">Registered students</p>
+              <p className="text-xs text-muted-foreground">
+                Registered students
+              </p>
             </CardContent>
           </Card>
 
@@ -141,7 +158,9 @@ export default function ParentDashboard() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">94%</div>
-              <p className="text-xs text-muted-foreground">Average attendance</p>
+              <p className="text-xs text-muted-foreground">
+                Average attendance
+              </p>
             </CardContent>
           </Card>
 
@@ -172,7 +191,9 @@ export default function ParentDashboard() {
           <Card>
             <CardHeader>
               <CardTitle>My Children</CardTitle>
-              <CardDescription>Monitor your children's progress</CardDescription>
+              <CardDescription>
+                Monitor your children's progress
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between p-4 border rounded-lg">
@@ -185,7 +206,9 @@ export default function ParentDashboard() {
                     <p className="text-sm text-muted-foreground">Grade 10A</p>
                   </div>
                 </div>
-                <Button variant="outline" size="sm">View Details</Button>
+                <Button variant="outline" size="sm">
+                  View Details
+                </Button>
               </div>
               <div className="flex items-center justify-between p-4 border rounded-lg">
                 <div className="flex items-center gap-4">
@@ -197,7 +220,9 @@ export default function ParentDashboard() {
                     <p className="text-sm text-muted-foreground">Grade 8B</p>
                   </div>
                 </div>
-                <Button variant="outline" size="sm">View Details</Button>
+                <Button variant="outline" size="sm">
+                  View Details
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -214,21 +239,27 @@ export default function ParentDashboard() {
                   <p className="text-xs text-muted-foreground mt-1">
                     Scheduled for Friday, 3:00 PM - 5:00 PM
                   </p>
-                  <p className="text-xs text-muted-foreground mt-2">2 days ago</p>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    2 days ago
+                  </p>
                 </div>
                 <div className="p-3 border-l-4 border-blue-500 bg-blue-500/5 rounded">
                   <p className="font-medium text-sm">Mid-term Exam Results</p>
                   <p className="text-xs text-muted-foreground mt-1">
                     Results are now available in the portal
                   </p>
-                  <p className="text-xs text-muted-foreground mt-2">5 days ago</p>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    5 days ago
+                  </p>
                 </div>
                 <div className="p-3 border-l-4 border-green-500 bg-green-500/5 rounded">
                   <p className="font-medium text-sm">School Sports Day</p>
                   <p className="text-xs text-muted-foreground mt-1">
                     Annual sports event next month
                   </p>
-                  <p className="text-xs text-muted-foreground mt-2">1 week ago</p>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    1 week ago
+                  </p>
                 </div>
               </div>
             </CardContent>
@@ -236,5 +267,5 @@ export default function ParentDashboard() {
         </div>
       </main>
     </div>
-  )
+  );
 }

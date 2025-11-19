@@ -38,6 +38,7 @@ import {
   Plus,
   Edit,
   Trash2,
+  TrendingUp,
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
@@ -154,6 +155,9 @@ export default function TeacherDashboard() {
     new Map()
   );
   const [submittingGrades, setSubmittingGrades] = useState(false);
+  const [classAssignments, setClassAssignments] = useState<any[]>([]);
+  const [selectedAssignmentForGrading, setSelectedAssignmentForGrading] =
+    useState<string>("");
 
   // View Grades state
   const [showViewGradesDialog, setShowViewGradesDialog] = useState(false);
@@ -161,11 +165,28 @@ export default function TeacherDashboard() {
     useState<Class | null>(null);
   const [classGrades, setClassGrades] = useState<any[]>([]);
   const [loadingGrades, setLoadingGrades] = useState(false);
+  const [viewGradesAssignments, setViewGradesAssignments] = useState<any[]>([]);
+  const [selectedViewGradesAssignment, setSelectedViewGradesAssignment] =
+    useState<string>("all");
+  const [showDeleteGradesConfirm, setShowDeleteGradesConfirm] = useState(false);
+  const [deletingGrades, setDeletingGrades] = useState(false);
 
   // View All Students state
   const [showAllStudentsDialog, setShowAllStudentsDialog] = useState(false);
   const [allStudents, setAllStudents] = useState<any[]>([]);
   const [loadingAllStudents, setLoadingAllStudents] = useState(false);
+
+  // View Attendance state
+  const [showViewAttendanceDialog, setShowViewAttendanceDialog] =
+    useState(false);
+  const [selectedClassForViewAttendance, setSelectedClassForViewAttendance] =
+    useState<Class | null>(null);
+  const [attendanceRecordsView, setAttendanceRecordsView] = useState<any[]>([]);
+  const [loadingAttendanceRecords, setLoadingAttendanceRecords] =
+    useState(false);
+  const [attendanceViewDate, setAttendanceViewDate] = useState(
+    new Date().toISOString().split("T")[0]
+  );
 
   // Schedule Detail Dialog state
   const [showScheduleDialog, setShowScheduleDialog] = useState(false);
@@ -618,9 +639,7 @@ export default function TeacherDashboard() {
       const data = await response.json();
 
       if (data.success) {
-        setSuccess(
-          `Attendance marked successfully for ${data.count} students!`
-        );
+        setSuccess(data.message || "Attendance marked successfully");
         setTimeout(() => {
           setShowAttendanceDialog(false);
           setSelectedClassForAttendance("");
@@ -692,13 +711,52 @@ export default function TeacherDashboard() {
     setSuccess("");
   };
 
+  // Open grades dialog with pre-selected class
+  const openGradesDialogForClass = async (classItem: Class) => {
+    setSelectedClassForGrades(classItem);
+    setShowGradesDialog(true);
+    setError("");
+    setSuccess("");
+    setLoadingGradesStudents(true);
+    setSelectedAssignmentForGrading("");
+
+    try {
+      // Fetch students
+      const response = await fetch(`/api/classes/${classItem.id}/students`);
+      const data = await response.json();
+
+      if (data.success) {
+        setGradesStudents(data.students);
+      } else {
+        setError(data.error || "Failed to fetch students");
+      }
+
+      // Fetch assignments for this class
+      const assignmentsResponse = await fetch(
+        `/api/assignments?class_id=${classItem.id}`
+      );
+      const assignmentsData = await assignmentsResponse.json();
+
+      if (assignmentsData.success) {
+        setClassAssignments(assignmentsData.assignments || []);
+      }
+    } catch (error) {
+      setError("An error occurred while fetching students");
+      console.error("Error fetching students:", error);
+    } finally {
+      setLoadingGradesStudents(false);
+    }
+  };
+
   // Fetch students for grading when class is selected
   const handleClassSelectionForGrades = async (classId: string) => {
     const selectedClass = classes.find((c) => c.id === classId);
     setSelectedClassForGrades(selectedClass || null);
     setLoadingGradesStudents(true);
+    setSelectedAssignmentForGrading("");
 
     try {
+      // Fetch students
       const response = await fetch(`/api/classes/${classId}/students`);
       const data = await response.json();
 
@@ -707,11 +765,35 @@ export default function TeacherDashboard() {
       } else {
         setError(data.error || "Failed to fetch students");
       }
+
+      // Fetch assignments for this class
+      const assignmentsResponse = await fetch(
+        `/api/assignments?class_id=${classId}`
+      );
+      const assignmentsData = await assignmentsResponse.json();
+
+      if (assignmentsData.success) {
+        setClassAssignments(assignmentsData.assignments || []);
+      }
     } catch (error) {
       setError("An error occurred while fetching students");
       console.error("Error fetching students:", error);
     } finally {
       setLoadingGradesStudents(false);
+    }
+  };
+
+  // Handle assignment selection for grading
+  const handleAssignmentSelection = (assignmentId: string) => {
+    setSelectedAssignmentForGrading(assignmentId);
+    const assignment = classAssignments.find((a) => a.id === assignmentId);
+    if (assignment) {
+      setGradeData({
+        ...gradeData,
+        grade_type: assignment.type,
+        max_score: assignment.max_score.toString(),
+        notes: `Grade for ${assignment.title}`,
+      });
     }
   };
 
@@ -745,6 +827,7 @@ export default function TeacherDashboard() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           class_id: selectedClassForGrades.id,
+          assignment_id: selectedAssignmentForGrading || null,
           grade_type: gradeData.grade_type,
           max_score: parseFloat(gradeData.max_score),
           grade_date: gradeData.grade_date,
@@ -786,50 +869,61 @@ export default function TeacherDashboard() {
     setShowViewGradesDialog(true);
     setLoadingGrades(true);
     setError("");
+    setSelectedViewGradesAssignment("");
 
     try {
-      // Fetch grades
-      const gradesResponse = await fetch(
-        `/api/grades?class_id=${classItem.id}`
+      // Fetch assignments for this class
+      const assignmentsResponse = await fetch(
+        `/api/assignments?class_id=${classItem.id}`
       );
+      const assignmentsData = await assignmentsResponse.json();
+
+      if (assignmentsData.success) {
+        setViewGradesAssignments(assignmentsData.assignments || []);
+      }
+
+      // Fetch all grades initially
+      await loadGradesForClass(classItem.id);
+    } catch (error) {
+      setError("An error occurred while fetching data");
+      console.error("Error:", error);
+    } finally {
+      setLoadingGrades(false);
+    }
+  };
+
+  // Load grades for a class
+  const loadGradesForClass = async (
+    classId: string,
+    filterAssignmentId?: string
+  ) => {
+    try {
+      // Fetch grades
+      const gradesResponse = await fetch(`/api/grades?class_id=${classId}`);
       const gradesData = await gradesResponse.json();
 
       if (!gradesData.success) {
         setError(gradesData.error || "Failed to fetch grades");
-        setLoadingGrades(false);
         return;
       }
 
       // Fetch students to get names
-      const studentsResponse = await fetch(
-        `/api/classes/${classItem.id}/students`
-      );
+      const studentsResponse = await fetch(`/api/classes/${classId}/students`);
       const studentsData = await studentsResponse.json();
 
       if (studentsData.success) {
         // Map student IDs to names
         const studentMap = new Map();
         studentsData.students.forEach((student: any) => {
-          console.log(
-            "Student:",
-            student.id,
-            student.first_name,
-            student.last_name
-          );
           studentMap.set(student.id, {
             name: `${student.first_name} ${student.last_name}`,
             student_code: student.student_id,
           });
         });
 
-        console.log("Student Map:", studentMap);
-        console.log("Grades:", gradesData.grades);
-
         // Add student names to grades
         const gradesWithNames = gradesData.grades.map((grade: any) => {
-          console.log("Mapping grade for student_id:", grade.student_id);
           const studentInfo = studentMap.get(grade.student_id);
-          console.log("Found student info:", studentInfo);
 
           return {
             ...grade,
@@ -838,16 +932,110 @@ export default function TeacherDashboard() {
           };
         });
 
-        console.log("Grades with names:", gradesWithNames);
-        setClassGrades(gradesWithNames);
+        // Filter by assignment if specified
+        let filteredGrades = gradesWithNames;
+        if (filterAssignmentId || selectedViewGradesAssignment) {
+          const assignmentId =
+            filterAssignmentId || selectedViewGradesAssignment;
+          filteredGrades = gradesWithNames.filter((grade) =>
+            grade.notes?.includes(`Assignment ID: ${assignmentId}`)
+          );
+        }
+
+        setClassGrades(filteredGrades);
       } else {
         setClassGrades(gradesData.grades);
       }
     } catch (error) {
-      setError("An error occurred while fetching grades");
-      console.error("Error fetching grades:", error);
+      console.error("Error loading grades:", error);
+    }
+  };
+
+  // Handle assignment selection for viewing grades
+  const handleViewGradesAssignmentChange = (assignmentId: string) => {
+    setSelectedViewGradesAssignment(assignmentId);
+
+    // Reload grades with filter (if not "all")
+    if (selectedClassForViewGrades) {
+      loadGradesForClass(
+        selectedClassForViewGrades.id,
+        assignmentId === "all" ? "" : assignmentId
+      );
+    }
+  };
+
+  // Delete all grades for class
+  const handleDeleteAllGrades = async () => {
+    if (!selectedClassForViewGrades) return;
+
+    setDeletingGrades(true);
+    setError("");
+
+    try {
+      const response = await fetch(
+        `/api/grades?class_id=${selectedClassForViewGrades.id}`,
+        {
+          method: "DELETE",
+        }
+      );
+
+      const data = await response.json();
+
+      if (data.success) {
+        setSuccess("All grades deleted successfully!");
+        setClassGrades([]);
+        setShowDeleteGradesConfirm(false);
+        setTimeout(() => {
+          setSuccess("");
+        }, 3000);
+      } else {
+        setError(data.error || "Failed to delete grades");
+      }
+    } catch (error) {
+      setError("An error occurred while deleting grades");
+      console.error("Error deleting grades:", error);
     } finally {
-      setLoadingGrades(false);
+      setDeletingGrades(false);
+    }
+  };
+
+  // View Attendance function
+  const openViewAttendanceDialog = async (classItem: Class) => {
+    setSelectedClassForViewAttendance(classItem);
+    setShowViewAttendanceDialog(true);
+    setLoadingAttendanceRecords(true);
+    setError("");
+
+    await loadAttendanceRecords(classItem.id, attendanceViewDate);
+  };
+
+  const loadAttendanceRecords = async (classId: string, date: string) => {
+    setLoadingAttendanceRecords(true);
+    try {
+      const response = await fetch(
+        `/api/attendance?class_id=${classId}&date=${date}`
+      );
+      const data = await response.json();
+
+      if (data.success) {
+        setAttendanceRecordsView(data.attendance || []);
+      } else {
+        setError(data.error || "Failed to fetch attendance records");
+        setAttendanceRecordsView([]);
+      }
+    } catch (error) {
+      setError("An error occurred while fetching attendance records");
+      console.error("Error fetching attendance:", error);
+      setAttendanceRecordsView([]);
+    } finally {
+      setLoadingAttendanceRecords(false);
+    }
+  };
+
+  const handleAttendanceDateChange = (date: string) => {
+    setAttendanceViewDate(date);
+    if (selectedClassForViewAttendance) {
+      loadAttendanceRecords(selectedClassForViewAttendance.id, date);
     }
   };
 
@@ -1439,7 +1627,7 @@ export default function TeacherDashboard() {
                         variant="outline"
                         size="sm"
                         onClick={() => openViewGradesDialog(classItem)}
-                        title="View Grades"
+                        title="View All Grades"
                       >
                         <FileText className="h-4 w-4" />
                       </Button>
@@ -1481,6 +1669,20 @@ export default function TeacherDashboard() {
               >
                 <Calendar className="h-4 w-4 mr-2" />
                 Mark Attendance
+              </Button>
+              <Button
+                className="w-full justify-start"
+                variant="outline"
+                onClick={() => {
+                  if (classes.length > 0) {
+                    openViewAttendanceDialog(classes[0]);
+                  } else {
+                    setError("No classes available");
+                  }
+                }}
+              >
+                <Calendar className="h-4 w-4 mr-2" />
+                View Attendance
               </Button>
               <Button
                 className="w-full justify-start"
@@ -2190,14 +2392,16 @@ export default function TeacherDashboard() {
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Email</p>
-                    <p className="font-semibold">{selectedStudent.email}</p>
+                    <p className="font-semibold">
+                      {selectedStudent.email || "N/A"}
+                    </p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">
                       Phone Number
                     </p>
                     <p className="font-semibold">
-                      {selectedStudent.phone_number}
+                      {selectedStudent.phone || "N/A"}
                     </p>
                   </div>
                   <div>
@@ -2215,13 +2419,74 @@ export default function TeacherDashboard() {
                   <div>
                     <p className="text-sm text-muted-foreground">Gender</p>
                     <p className="font-semibold capitalize">
-                      {selectedStudent.gender}
+                      {selectedStudent.gender || "N/A"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">
+                      Enrollment Status
+                    </p>
+                    <p className="font-semibold capitalize">
+                      <Badge
+                        variant={
+                          selectedStudent.enrollment_status === "active"
+                            ? "default"
+                            : "secondary"
+                        }
+                      >
+                        {selectedStudent.enrollment_status}
+                      </Badge>
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">
+                      Enrollment Date
+                    </p>
+                    <p className="font-semibold">
+                      {selectedStudent.enrollment_date
+                        ? new Date(
+                            selectedStudent.enrollment_date
+                          ).toLocaleDateString()
+                        : "N/A"}
                     </p>
                   </div>
                   <div className="col-span-2">
                     <p className="text-sm text-muted-foreground">Address</p>
-                    <p className="font-semibold">{selectedStudent.address}</p>
+                    <p className="font-semibold">
+                      {selectedStudent.address || "N/A"}
+                    </p>
                   </div>
+                  {(selectedStudent.emergency_contact_name ||
+                    selectedStudent.emergency_contact_phone) && (
+                    <>
+                      <div>
+                        <p className="text-sm text-muted-foreground">
+                          Emergency Contact
+                        </p>
+                        <p className="font-semibold">
+                          {selectedStudent.emergency_contact_name || "N/A"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">
+                          Emergency Phone
+                        </p>
+                        <p className="font-semibold">
+                          {selectedStudent.emergency_contact_phone || "N/A"}
+                        </p>
+                      </div>
+                    </>
+                  )}
+                  {selectedStudent.medical_notes && (
+                    <div className="col-span-2">
+                      <p className="text-sm text-muted-foreground">
+                        Medical Notes
+                      </p>
+                      <p className="font-semibold">
+                        {selectedStudent.medical_notes}
+                      </p>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
@@ -2341,30 +2606,36 @@ export default function TeacherDashboard() {
               </Select>
             </div>
 
-            {/* Assignment Details */}
+            {/* Assignment Selection */}
             {selectedClassForGrades && (
               <>
+                <div className="space-y-2">
+                  <Label htmlFor="assignment-select">Select Assignment *</Label>
+                  <Select
+                    value={selectedAssignmentForGrading}
+                    onValueChange={handleAssignmentSelection}
+                  >
+                    <SelectTrigger id="assignment-select">
+                      <SelectValue placeholder="Choose an assignment" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {classAssignments.length === 0 ? (
+                        <SelectItem value="none" disabled>
+                          No assignments available
+                        </SelectItem>
+                      ) : (
+                        classAssignments.map((assignment) => (
+                          <SelectItem key={assignment.id} value={assignment.id}>
+                            {assignment.title} ({assignment.type}) - Max:{" "}
+                            {assignment.max_score}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="grade-type">Assessment Type *</Label>
-                    <Select
-                      value={gradeData.grade_type}
-                      onValueChange={(value) =>
-                        setGradeData({ ...gradeData, grade_type: value })
-                      }
-                    >
-                      <SelectTrigger id="grade-type">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="quiz">Quiz</SelectItem>
-                        <SelectItem value="assignment">Assignment</SelectItem>
-                        <SelectItem value="midterm">Midterm</SelectItem>
-                        <SelectItem value="final">Final</SelectItem>
-                        <SelectItem value="project">Project</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
                   <div className="space-y-2">
                     <Label htmlFor="max-score">Max Score *</Label>
                     <Input
@@ -2527,6 +2798,32 @@ export default function TeacherDashboard() {
           </DialogHeader>
 
           <div className="space-y-4">
+            {/* Assignment Filter */}
+            {selectedClassForViewGrades && viewGradesAssignments.length > 0 && (
+              <div className="space-y-2">
+                <Label htmlFor="view-grades-assignment">
+                  Filter by Assignment (Optional)
+                </Label>
+                <Select
+                  value={selectedViewGradesAssignment}
+                  onValueChange={handleViewGradesAssignmentChange}
+                >
+                  <SelectTrigger id="view-grades-assignment">
+                    <SelectValue placeholder="All assignments" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All assignments</SelectItem>
+                    {viewGradesAssignments.map((assignment) => (
+                      <SelectItem key={assignment.id} value={assignment.id}>
+                        {assignment.title} ({assignment.type}) - Max:{" "}
+                        {assignment.max_score}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             {loadingGrades ? (
               <div className="text-center py-12 text-muted-foreground">
                 Loading grades...
@@ -2544,6 +2841,97 @@ export default function TeacherDashboard() {
             ) : (
               <div className="overflow-x-auto">
                 {(() => {
+                  // If filtering by specific assignment, show simple table
+                  if (
+                    selectedViewGradesAssignment &&
+                    selectedViewGradesAssignment !== "all"
+                  ) {
+                    const assignment = viewGradesAssignments.find(
+                      (a) => a.id === selectedViewGradesAssignment
+                    );
+                    return (
+                      <div className="space-y-4">
+                        {assignment && (
+                          <div className="p-4 bg-muted/50 rounded-lg">
+                            <h3 className="font-semibold">
+                              {assignment.title}
+                            </h3>
+                            <p className="text-sm text-muted-foreground">
+                              Type: {assignment.type} • Max Score:{" "}
+                              {assignment.max_score}
+                            </p>
+                          </div>
+                        )}
+                        <table className="w-full border-collapse">
+                          <thead>
+                            <tr className="border-b bg-muted/50">
+                              <th className="p-3 text-left font-semibold">
+                                Student
+                              </th>
+                              <th className="p-3 text-center font-semibold">
+                                Score
+                              </th>
+                              <th className="p-3 text-center font-semibold">
+                                Percentage
+                              </th>
+                              <th className="p-3 text-left font-semibold">
+                                Notes
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {classGrades.map((grade) => {
+                              const percentage =
+                                grade.percentage ||
+                                ((grade.score / grade.max_score) * 100).toFixed(
+                                  1
+                                );
+                              const percentageColor =
+                                parseFloat(percentage) >= 80
+                                  ? "text-green-600"
+                                  : parseFloat(percentage) >= 60
+                                  ? "text-yellow-600"
+                                  : "text-red-600";
+                              return (
+                                <tr
+                                  key={grade.id}
+                                  className="border-b hover:bg-muted/30"
+                                >
+                                  <td className="p-3">
+                                    <div>
+                                      <p className="font-semibold">
+                                        {grade.student_name}
+                                      </p>
+                                      <p className="text-xs text-muted-foreground">
+                                        ID: {grade.student_code}
+                                      </p>
+                                    </div>
+                                  </td>
+                                  <td className="p-3 text-center">
+                                    <div className="text-lg font-bold">
+                                      {grade.score}/{grade.max_score}
+                                    </div>
+                                  </td>
+                                  <td className="p-3 text-center">
+                                    <div
+                                      className={`text-lg font-bold ${percentageColor}`}
+                                    >
+                                      {percentage}%
+                                    </div>
+                                  </td>
+                                  <td className="p-3 text-sm text-muted-foreground">
+                                    {grade.notes || "-"}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    );
+                  }
+
+                  // Show all grades grouped by assessment type
                   // Group grades by student
                   const studentGradesMap = new Map();
                   classGrades.forEach((grade) => {
@@ -2724,9 +3112,43 @@ export default function TeacherDashboard() {
                 setShowViewGradesDialog(false);
                 setSelectedClassForViewGrades(null);
                 setClassGrades([]);
+                setSelectedViewGradesAssignment("all");
               }}
             >
               Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Grades Confirmation Dialog */}
+      <Dialog
+        open={showDeleteGradesConfirm}
+        onOpenChange={setShowDeleteGradesConfirm}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete All Grades</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete all grades for{" "}
+              {selectedClassForViewGrades?.subject_name}? This action cannot be
+              undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowDeleteGradesConfirm(false)}
+              disabled={deletingGrades}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteAllGrades}
+              disabled={deletingGrades}
+            >
+              {deletingGrades ? "Deleting..." : "Delete All Grades"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -3510,6 +3932,201 @@ export default function TeacherDashboard() {
               }
             >
               {submittingAssignmentGrades ? "Submitting..." : "Submit Grades"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Attendance Dialog */}
+      <Dialog
+        open={showViewAttendanceDialog}
+        onOpenChange={setShowViewAttendanceDialog}
+      >
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>View Attendance Records</DialogTitle>
+            <DialogDescription>
+              {selectedClassForViewAttendance
+                ? `${selectedClassForViewAttendance.subject_name} - ${selectedClassForViewAttendance.academic_year}`
+                : "Select a date to view attendance"}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* Date and Class Selection */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="view-attendance-date">Select Date</Label>
+                <Input
+                  id="view-attendance-date"
+                  type="date"
+                  value={attendanceViewDate}
+                  onChange={(e) => handleAttendanceDateChange(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="view-attendance-class">Select Class</Label>
+                <Select
+                  value={selectedClassForViewAttendance?.id || ""}
+                  onValueChange={(classId) => {
+                    const classItem = classes.find((c) => c.id === classId);
+                    if (classItem) {
+                      setSelectedClassForViewAttendance(classItem);
+                      loadAttendanceRecords(classId, attendanceViewDate);
+                    }
+                  }}
+                >
+                  <SelectTrigger id="view-attendance-class">
+                    <SelectValue placeholder="Choose a class" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {classes.map((classItem) => (
+                      <SelectItem key={classItem.id} value={classItem.id}>
+                        {classItem.subject_name} - {classItem.academic_year}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Attendance Records */}
+            {loadingAttendanceRecords ? (
+              <div className="text-center py-12 text-muted-foreground">
+                Loading attendance records...
+              </div>
+            ) : attendanceRecordsView.length === 0 ? (
+              <div className="text-center py-12">
+                <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <p className="text-muted-foreground">
+                  No attendance records found for this date
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold">
+                    Attendance for{" "}
+                    {new Date(attendanceViewDate).toLocaleDateString()}
+                  </h3>
+                  <div className="flex gap-2">
+                    <Badge variant="outline" className="bg-green-50">
+                      Present:{" "}
+                      {
+                        attendanceRecordsView.filter(
+                          (r) => r.status === "present"
+                        ).length
+                      }
+                    </Badge>
+                    <Badge variant="outline" className="bg-red-50">
+                      Absent:{" "}
+                      {
+                        attendanceRecordsView.filter(
+                          (r) => r.status === "absent"
+                        ).length
+                      }
+                    </Badge>
+                    <Badge variant="outline" className="bg-yellow-50">
+                      Late:{" "}
+                      {
+                        attendanceRecordsView.filter((r) => r.status === "late")
+                          .length
+                      }
+                    </Badge>
+                    <Badge variant="outline" className="bg-blue-50">
+                      Excused:{" "}
+                      {
+                        attendanceRecordsView.filter(
+                          (r) => r.status === "excused"
+                        ).length
+                      }
+                    </Badge>
+                  </div>
+                </div>
+
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="border-b bg-muted/50">
+                      <th className="p-3 text-left font-semibold">Student</th>
+                      <th className="p-3 text-center font-semibold">Status</th>
+                      <th className="p-3 text-left font-semibold">Notes</th>
+                      <th className="p-3 text-center font-semibold">
+                        Marked At
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {attendanceRecordsView.map((record) => (
+                      <tr
+                        key={record.id}
+                        className="border-b hover:bg-muted/30"
+                      >
+                        <td className="p-3">
+                          <div>
+                            <p className="font-semibold">
+                              {record.student_name || "Unknown Student"}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              ID: {record.student_code || record.student_id}
+                            </p>
+                          </div>
+                        </td>
+                        <td className="p-3 text-center">
+                          <Badge
+                            variant={
+                              record.status === "present"
+                                ? "default"
+                                : record.status === "absent"
+                                ? "destructive"
+                                : record.status === "late"
+                                ? "outline"
+                                : "secondary"
+                            }
+                            className={
+                              record.status === "present"
+                                ? "bg-green-600"
+                                : record.status === "late"
+                                ? "bg-yellow-600 text-white"
+                                : record.status === "excused"
+                                ? "bg-blue-600 text-white"
+                                : ""
+                            }
+                          >
+                            {record.status.toUpperCase()}
+                          </Badge>
+                        </td>
+                        <td className="p-3 text-sm text-muted-foreground">
+                          {record.notes || "-"}
+                        </td>
+                        <td className="p-3 text-center text-sm text-muted-foreground">
+                          {record.created_at
+                            ? new Date(record.created_at).toLocaleString()
+                            : "-"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowViewAttendanceDialog(false);
+                setSelectedClassForViewAttendance(null);
+                setAttendanceRecordsView([]);
+              }}
+            >
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>
