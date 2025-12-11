@@ -222,9 +222,9 @@ export function SubjectManagement() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>Subject Management</CardTitle>
+              <CardTitle>Course Management</CardTitle>
               <CardDescription>
-                Create and manage subjects for your school
+                Create and manage courses for your school
               </CardDescription>
             </div>
             <div className="flex gap-2">
@@ -241,7 +241,7 @@ export function SubjectManagement() {
                 className="gap-2"
               >
                 <Plus className="h-4 w-4" />
-                Add Subject
+                Add Course
               </Button>
             </div>
           </div>
@@ -253,13 +253,13 @@ export function SubjectManagement() {
               <Input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search subjects by name or code..."
+                placeholder="Search courses by name or code..."
                 className="pl-9"
               />
             </div>
             <Badge variant="outline" className="gap-1">
               <BookOpen className="h-3 w-3" />
-              {subjects.length} Subjects
+              {subjects.length} Courses
             </Badge>
           </div>
         </CardContent>
@@ -286,7 +286,7 @@ export function SubjectManagement() {
         <Card>
           <CardContent className="py-12 text-center">
             <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-2 text-muted-foreground" />
-            <p className="text-muted-foreground">Loading subjects...</p>
+            <p className="text-muted-foreground">Loading courses...</p>
           </CardContent>
         </Card>
       ) : filteredSubjects.length === 0 ? (
@@ -295,12 +295,12 @@ export function SubjectManagement() {
             <BookOpen className="h-12 w-12 mx-auto mb-4 opacity-50 text-muted-foreground" />
             <p className="text-muted-foreground mb-4">
               {searchQuery
-                ? "No subjects found matching your search"
-                : "No subjects found"}
+                ? "No courses found matching your search"
+                : "No courses found"}
             </p>
             <Button onClick={() => setCreateDialogOpen(true)}>
               <Plus className="h-4 w-4 mr-2" />
-              Add Your First Subject
+              Add Your First Course
             </Button>
           </CardContent>
         </Card>
@@ -374,11 +374,11 @@ export function SubjectManagement() {
       <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Create New Subject</DialogTitle>
+            <DialogTitle>Create New Course</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleCreate} className="space-y-4">
+          <form onSubmit={handleUpdate} className="space-y-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Subject Name *</label>
+              <label className="text-sm font-medium">Course Name *</label>
               <Input
                 placeholder="e.g., Mathematics"
                 value={formData.subject_name}
@@ -390,7 +390,7 @@ export function SubjectManagement() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">Subject Code *</label>
+              <label className="text-sm font-medium">Course Code *</label>
               <Input
                 placeholder="e.g., MATH101"
                 value={formData.subject_code}
@@ -442,7 +442,7 @@ export function SubjectManagement() {
                 Cancel
               </Button>
               <Button type="submit" disabled={loading}>
-                {loading ? "Creating..." : "Create Subject"}
+                {loading ? "Creating..." : "Create Course"}
               </Button>
             </DialogFooter>
           </form>
@@ -453,19 +453,19 @@ export function SubjectManagement() {
       <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Subject Details</DialogTitle>
+            <DialogTitle>Course Details</DialogTitle>
           </DialogHeader>
           {selectedSubject && (
             <div className="space-y-3">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">
-                  Subject Name
+                  Course Name
                 </p>
                 <p className="text-base">{selectedSubject.subject_name}</p>
               </div>
               <div>
                 <p className="text-sm font-medium text-muted-foreground">
-                  Subject Code
+                  Course Code
                 </p>
                 <p className="text-base font-mono">
                   {selectedSubject.subject_code}
@@ -507,11 +507,11 @@ export function SubjectManagement() {
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Edit Subject</DialogTitle>
+            <DialogTitle>Edit Course</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleUpdate} className="space-y-4">
+          <form onSubmit={handleCreate} className="space-y-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Subject Name *</label>
+              <label className="text-sm font-medium">Course Name *</label>
               <Input
                 placeholder="e.g., Mathematics"
                 value={formData.subject_name}
@@ -523,7 +523,7 @@ export function SubjectManagement() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">Subject Code *</label>
+              <label className="text-sm font-medium">Course Code *</label>
               <Input
                 placeholder="e.g., MATH101"
                 value={formData.subject_code}
@@ -576,7 +576,7 @@ export function SubjectManagement() {
                 Cancel
               </Button>
               <Button type="submit" disabled={loading}>
-                {loading ? "Updating..." : "Update Subject"}
+                {loading ? "Updating..." : "Update Course"}
               </Button>
             </DialogFooter>
           </form>

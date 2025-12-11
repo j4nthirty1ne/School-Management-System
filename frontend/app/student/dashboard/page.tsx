@@ -10,7 +10,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { JoinClassDialog } from "@/components/join-class-dialog";
+import { JoinGroupDialog } from "@/components/join-group-dialog";
 import {
   Dialog,
   DialogContent,
@@ -48,7 +48,7 @@ export default function StudentDashboard() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [openDialog, setOpenDialog] = useState<
-    null | "attendance" | "grades" | "assignments" | "classes"
+    null | "attendance" | "grades" | "assignments" | "groups"
   >(null);
   const [joinDialogOpen, setJoinDialogOpen] = useState(false);
   const [attendanceData, setAttendanceData] = useState<any[]>([]);
@@ -84,7 +84,7 @@ export default function StudentDashboard() {
   };
 
   const fetchDialogData = async (
-    dialogType: "attendance" | "grades" | "assignments" | "classes"
+    dialogType: "attendance" | "grades" | "assignments" | "groups"
   ) => {
     setDialogLoading(true);
     try {
@@ -103,7 +103,7 @@ export default function StudentDashboard() {
         const json = await res.json();
         setAssignmentsData(json.assignments || []);
       }
-      if (dialogType === "classes") {
+      if (dialogType === "groups") {
         const res = await fetch("/api/students/classes");
         const json = await res.json();
         setClassesData(json.classes || []);
@@ -341,11 +341,11 @@ export default function StudentDashboard() {
 
           <Card
             className="cursor-pointer hover:shadow-lg transition-shadow dark:bg-[#1a1a1a] dark:border-gray-800"
-            onClick={() => setOpenDialog("classes")}
+            onClick={() => setOpenDialog("groups")}
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium dark:text-white">
-                Classes
+                Groups
               </CardTitle>
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -364,7 +364,7 @@ export default function StudentDashboard() {
             <CardContent>
               <div className="text-2xl font-bold dark:text-white">6 Active</div>
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                Your enrolled classes
+                Your enrolled groups
               </p>
               <Button
                 variant="outline"
@@ -375,7 +375,7 @@ export default function StudentDashboard() {
                   setJoinDialogOpen(true);
                 }}
               >
-                + Join New Class
+                + Join New Group
               </Button>
             </CardContent>
           </Card>
@@ -586,13 +586,15 @@ export default function StudentDashboard() {
         </Dialog>
 
         <Dialog
-          open={openDialog === "classes"}
-          onOpenChange={(val) => setOpenDialog(val ? "classes" : null)}
+          open={openDialog === "groups"}
+          onOpenChange={(val) => setOpenDialog(val ? "groups" : null)}
         >
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Active Classes</DialogTitle>
-              <DialogDescription>This semester's classes</DialogDescription>
+              <DialogTitle>My Groups</DialogTitle>
+              <DialogDescription>
+                Your subject groups this semester
+              </DialogDescription>
             </DialogHeader>
             <div className="mt-4 space-y-3">
               {dialogLoading ? (
@@ -640,15 +642,15 @@ export default function StudentDashboard() {
                       size="sm"
                       className="ml-4"
                       onClick={() => {
-                        // Handle join class action - could open a video call link or class page
+                        // Handle join group action - could open a video call link or group page
                         window.alert(
-                          `Joining class: ${
+                          `Joining group: ${
                             c.class_name || c.subject || c.subject_name
                           }`
                         );
                       }}
                     >
-                      Join Class
+                      Join Group
                     </Button>
                   </div>
                 ))
@@ -771,14 +773,14 @@ export default function StudentDashboard() {
         </div>
       </main>
 
-      <JoinClassDialog
+      <JoinGroupDialog
         open={joinDialogOpen}
         onOpenChange={setJoinDialogOpen}
         studentId={user?.id || ""}
         onSuccess={() => {
-          // Refresh classes data when dialog is open
-          if (openDialog === "classes") {
-            fetchDialogData("classes");
+          // Refresh groups data when dialog is open
+          if (openDialog === "groups") {
+            fetchDialogData("groups");
           }
         }}
       />

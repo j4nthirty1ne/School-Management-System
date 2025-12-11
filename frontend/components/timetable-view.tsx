@@ -183,11 +183,11 @@ export function TimetableView({
             <p className="text-muted-foreground mb-2">
               {userType === "teacher"
                 ? "No classes assigned yet"
-                : "No classes enrolled yet"}
+                : "No groups enrolled yet"}
             </p>
             {userType === "student" && (
               <p className="text-sm text-muted-foreground">
-                Use a join code to enroll in classes
+                Use a join code to enroll in groups
               </p>
             )}
           </CardContent>

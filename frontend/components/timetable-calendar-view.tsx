@@ -220,7 +220,7 @@ export function TimetableCalendarView() {
             <div>
               <CardTitle>Timetable Calendar View</CardTitle>
               <CardDescription>
-                Click on a time slot to add a class
+                Click on a time slot to add a group
               </CardDescription>
             </div>
             <div className="flex gap-2">
@@ -380,7 +380,7 @@ export function TimetableCalendarView() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              Add Class - {selectedCell?.day} ({selectedCell?.time.label})
+              Add Group - {selectedCell?.day} ({selectedCell?.time.label})
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleCreateSchedule} className="space-y-4">

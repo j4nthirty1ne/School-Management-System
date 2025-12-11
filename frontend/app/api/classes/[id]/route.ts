@@ -133,7 +133,6 @@ export async function PUT(
         subject_id: body.subject_id || null,
         academic_year: body.academic_year,
         room_number: body.room_number || null,
-        capacity: body.capacity,
         day_of_week: body.day_of_week || null,
         start_time: body.start_time || null,
         end_time: body.end_time || null,

@@ -142,9 +142,22 @@ AND (
 
 ## Migration History
 
-| Date       | Version | Description                       |
-| ---------- | ------- | --------------------------------- |
-| 2025-11-17 | 1.0     | Initial timetable tables creation |
+| Date       | Version | Description                       | File |
+| ---------- | ------- | --------------------------------- | ---- |
+| 2025-11-17 | 1.0     | Initial timetable tables creation | add_timetable_tables.sql |
+| 2025-11-17 | 1.1     | Remove capacity column from classes table | remove_capacity_column.sql |
+
+## Pending Migrations
+
+⚠️ **IMPORTANT:** Run `remove_capacity_column.sql` to fix the "capacity NOT NULL constraint" error
+
+To run this migration:
+1. Open Supabase Dashboard → SQL Editor
+2. Copy content from `migrations/remove_capacity_column.sql`
+3. Paste and click "Run"
+4. Verify success message appears
+
+This fixes the error: `null value in column "capacity" of relation "classes" violates not-null constraint`
 
 ## Support
 

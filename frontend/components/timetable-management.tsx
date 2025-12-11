@@ -270,9 +270,9 @@ export function TimetableManagement() {
         resetForm();
         setConflicts([]);
         fetchSubjectClasses();
-        alert(`Class created successfully! Join Code: ${data.class.join_code}`);
+        alert(`Group created successfully! Join Code: ${data.class.join_code}`);
       } else {
-        setError(data.error || "Failed to create class");
+        setError(data.error || "Failed to create group");
       }
     } catch (err: any) {
       setError(err.message || "An error occurred");
@@ -410,7 +410,7 @@ export function TimetableManagement() {
             <div>
               <CardTitle>Timetable Management</CardTitle>
               <CardDescription>
-                Create and manage class schedules for {academicYear}
+                Create and manage group schedules for {academicYear}
               </CardDescription>
             </div>
             <div className="flex gap-2">

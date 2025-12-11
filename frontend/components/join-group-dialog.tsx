@@ -13,25 +13,25 @@ import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 
-interface JoinClassDialogProps {
+interface JoinGroupDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   studentId: string;
   onSuccess?: () => void;
 }
 
-export function JoinClassDialog({
+export function JoinGroupDialog({
   open,
   onOpenChange,
   studentId,
   onSuccess,
-}: JoinClassDialogProps) {
+}: JoinGroupDialogProps) {
   const [joinCode, setJoinCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState<string | null>(null);
 
-  const handleJoinClass = async (e: React.FormEvent) => {
+  const handleJoinGroup = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!joinCode.trim()) {
@@ -56,7 +56,7 @@ export function JoinClassDialog({
       const data = await response.json();
 
       if (data.success) {
-        setSuccess(data.message || "Successfully enrolled in class!");
+        setSuccess(data.message || "Successfully joined group!");
         setJoinCode("");
         setTimeout(() => {
           onSuccess?.();
@@ -64,7 +64,7 @@ export function JoinClassDialog({
           setSuccess(null);
         }, 2000);
       } else {
-        setError(data.error || "Failed to join class");
+        setError(data.error || "Failed to join group");
       }
     } catch (err: any) {
       setError(err.message || "An error occurred");
@@ -77,11 +77,11 @@ export function JoinClassDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Join a Class</DialogTitle>
+          <DialogTitle>Join a Group</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleJoinClass} className="space-y-4">
+        <form onSubmit={handleJoinGroup} className="space-y-4">
           <div className="space-y-2">
-            <label className="text-sm font-medium">Class Join Code</label>
+            <label className="text-sm font-medium">Group Join Code</label>
             <Input
               placeholder="Enter 6-character code (e.g., ABC123)"
               value={joinCode}
@@ -130,7 +130,7 @@ export function JoinClassDialog({
             </Button>
             <Button type="submit" disabled={loading || !joinCode.trim()}>
               {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              {loading ? "Joining..." : "Join Class"}
+              {loading ? "Joining..." : "Join Group"}
             </Button>
           </DialogFooter>
         </form>

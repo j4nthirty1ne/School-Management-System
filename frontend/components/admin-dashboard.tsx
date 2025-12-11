@@ -89,7 +89,6 @@ interface Class {
   room_number?: string;
   schedule?: string;
   academic_year?: string;
-  capacity?: number;
   day_of_week?: string;
   start_time?: string;
   end_time?: string;
@@ -265,7 +264,6 @@ export function AdminDashboard() {
     academic_year: "",
     teacher_id: "",
     room_number: "",
-    capacity: "",
     day_of_week: "",
     start_time: "",
     end_time: "",
@@ -279,10 +277,7 @@ export function AdminDashboard() {
       const response = await fetch("/api/classes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...newClass,
-          capacity: newClass.capacity ? parseInt(newClass.capacity) : null,
-        }),
+        body: JSON.stringify(newClass),
       });
       const data = await response.json();
 
@@ -295,14 +290,13 @@ export function AdminDashboard() {
           academic_year: "",
           teacher_id: "",
           room_number: "",
-          capacity: "",
           day_of_week: "",
           start_time: "",
           end_time: "",
         });
         fetchClasses();
       } else {
-        alert(data.error || "Failed to create class");
+        alert(data.error || "Failed to create group");
       }
     } catch (err: any) {
       alert(err.message || "An error occurred");
@@ -312,7 +306,7 @@ export function AdminDashboard() {
   };
 
   const handleDeleteClass = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this class?")) return;
+    if (!confirm("Are you sure you want to delete this group?")) return;
 
     try {
       const response = await fetch(`/api/classes/${id}`, { method: "DELETE" });
@@ -321,7 +315,7 @@ export function AdminDashboard() {
       if (data.success) {
         fetchClasses();
       } else {
-        alert(data.error || "Failed to delete class");
+        alert(data.error || "Failed to delete group");
       }
     } catch (err: any) {
       alert(err.message || "An error occurred");
@@ -567,7 +561,7 @@ export function AdminDashboard() {
       change: "+3%",
     },
     {
-      label: "Classes",
+      label: "Groups",
       value: statsData.totalClasses.toString(),
       icon: Calendar,
       change: "0%",
@@ -708,8 +702,7 @@ export function AdminDashboard() {
         <TabsList>
           <TabsTrigger value="students">Students</TabsTrigger>
           <TabsTrigger value="teachers">Teachers</TabsTrigger>
-          <TabsTrigger value="classes">Classes</TabsTrigger>
-          <TabsTrigger value="subjects">Subjects</TabsTrigger>
+          <TabsTrigger value="classes">Groups</TabsTrigger>
           <TabsTrigger value="timetable">Timetable</TabsTrigger>
         </TabsList>
 
@@ -1011,9 +1004,9 @@ export function AdminDashboard() {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle>Class Management</CardTitle>
+                  <CardTitle>Group Management</CardTitle>
                   <CardDescription>
-                    Create and manage classes for teachers
+                    Create and manage subject groups for teachers
                   </CardDescription>
                 </div>
                 <Button
@@ -1021,7 +1014,7 @@ export function AdminDashboard() {
                   onClick={() => setAddClassDialogOpen(true)}
                 >
                   <Plus className="h-4 w-4" />
-                  Add Class
+                  Add Group
                 </Button>
               </div>
             </CardHeader>
@@ -1029,7 +1022,7 @@ export function AdminDashboard() {
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search classes by name, teacher, or room..."
+                  placeholder="Search groups by name, teacher, or room..."
                   value={classSearchQuery}
                   onChange={(e) => setClassSearchQuery(e.target.value)}
                   className="pl-9"
@@ -1039,18 +1032,18 @@ export function AdminDashboard() {
               {loading ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-2" />
-                  <p>Loading classes...</p>
+                  <p>Loading groups...</p>
                 </div>
               ) : filteredClasses.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <BookOpen className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>No classes found</p>
+                  <p>No groups found</p>
                   <Button
                     className="mt-4"
                     onClick={() => setAddClassDialogOpen(true)}
                   >
                     <Plus className="h-4 w-4 mr-2" />
-                    Create Your First Class
+                    Create Your First Group
                   </Button>
                 </div>
               ) : (
@@ -1060,7 +1053,7 @@ export function AdminDashboard() {
                       <thead className="bg-muted/50">
                         <tr>
                           <th className="text-left p-3 text-sm font-medium">
-                            Class Name
+                            Group Name
                           </th>
                           <th className="text-left p-3 text-sm font-medium">
                             Grade/Section
@@ -1070,9 +1063,6 @@ export function AdminDashboard() {
                           </th>
                           <th className="text-left p-3 text-sm font-medium">
                             Room
-                          </th>
-                          <th className="text-left p-3 text-sm font-medium">
-                            Capacity
                           </th>
                           <th className="text-left p-3 text-sm font-medium">
                             Actions
@@ -1103,9 +1093,6 @@ export function AdminDashboard() {
                               </td>
                               <td className="p-3 text-sm">
                                 {cls.room_number || "N/A"}
-                              </td>
-                              <td className="p-3 text-sm">
-                                {cls.capacity || "N/A"}
                               </td>
                               <td className="p-3 text-sm">
                                 <DropdownMenu>
@@ -1153,10 +1140,6 @@ export function AdminDashboard() {
               )}
             </CardContent>
           </Card>
-        </TabsContent>
-
-        <TabsContent value="subjects" className="space-y-4">
-          <SubjectManagement />
         </TabsContent>
 
         <TabsContent value="timetable" className="space-y-4">
@@ -1466,7 +1449,7 @@ export function AdminDashboard() {
       <Dialog open={addClassDialogOpen} onOpenChange={setAddClassDialogOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Create New Class</DialogTitle>
+            <DialogTitle>Create New Group</DialogTitle>
           </DialogHeader>
 
           <form onSubmit={handleCreateClass} className="space-y-4">
@@ -1537,18 +1520,6 @@ export function AdminDashboard() {
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium">Capacity</label>
-                <Input
-                  type="number"
-                  placeholder="e.g., 30"
-                  value={newClass.capacity}
-                  onChange={(e) =>
-                    setNewClass({ ...newClass, capacity: e.target.value })
-                  }
-                />
-              </div>
-
-              <div className="space-y-2">
                 <label className="text-sm font-medium">Day of Week</label>
                 <select
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
@@ -1600,7 +1571,7 @@ export function AdminDashboard() {
                 Cancel
               </Button>
               <Button type="submit" disabled={classLoading}>
-                {classLoading ? "Creating..." : "Create Class"}
+                {classLoading ? "Creating..." : "Create Group"}
               </Button>
             </DialogFooter>
           </form>
@@ -1611,7 +1582,7 @@ export function AdminDashboard() {
       <Dialog open={viewClassDialogOpen} onOpenChange={setViewClassDialogOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Class Details</DialogTitle>
+            <DialogTitle>Group Details</DialogTitle>
           </DialogHeader>
           {selectedClass && (
             <div className="space-y-4">
@@ -1658,12 +1629,6 @@ export function AdminDashboard() {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">
-                    Capacity
-                  </p>
-                  <p className="text-base">{selectedClass.capacity || "N/A"}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">
                     Day of Week
                   </p>
                   <p className="text-base">
@@ -1693,7 +1658,7 @@ export function AdminDashboard() {
       <Dialog open={editClassDialogOpen} onOpenChange={setEditClassDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Edit Class</DialogTitle>
+            <DialogTitle>Edit Group</DialogTitle>
           </DialogHeader>
           {selectedClass && (
             <form
@@ -1712,11 +1677,11 @@ export function AdminDashboard() {
                     fetchClasses();
                     setSelectedClass(null);
                   } else {
-                    alert(data.error || "Failed to update class");
+                    alert(data.error || "Failed to update group");
                   }
                 } catch (error) {
                   console.error("Error updating class:", error);
-                  alert("Failed to update class");
+                  alert("Failed to update group");
                 } finally {
                   setClassLoading(false);
                 }
@@ -1803,21 +1768,6 @@ export function AdminDashboard() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Capacity</label>
-                  <Input
-                    type="number"
-                    placeholder="e.g., 30"
-                    value={selectedClass.capacity || ""}
-                    onChange={(e) =>
-                      setSelectedClass({
-                        ...selectedClass,
-                        capacity: parseInt(e.target.value) || undefined,
-                      })
-                    }
-                  />
-                </div>
-
-                <div className="space-y-2">
                   <label className="text-sm font-medium">Day of Week</label>
                   <select
                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
@@ -1881,7 +1831,7 @@ export function AdminDashboard() {
                   Cancel
                 </Button>
                 <Button type="submit" disabled={classLoading}>
-                  {classLoading ? "Updating..." : "Update Class"}
+                  {classLoading ? "Updating..." : "Update Group"}
                 </Button>
               </DialogFooter>
             </form>

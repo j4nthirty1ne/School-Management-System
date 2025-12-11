@@ -934,12 +934,12 @@ export default function TeacherDashboard() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>My Classes</CardTitle>
-                <CardDescription>Manage your classes</CardDescription>
+                <CardTitle>My Groups</CardTitle>
+                <CardDescription>Manage your groups</CardDescription>
               </div>
               <Button onClick={() => setShowAddDialog(true)}>
                 <Plus className="h-4 w-4 mr-2" />
-                Add Class
+                Add Group
               </Button>
             </div>
           </CardHeader>
@@ -947,8 +947,8 @@ export default function TeacherDashboard() {
             <div className="space-y-4">
               {classes.length === 0 ? (
                 <p className="text-muted-foreground text-center py-8">
-                  No classes found. Click &quot;Add Class&quot; to create your
-                  first class.
+                  No groups found. Click &quot;Add Group&quot; to create your
+                  first group.
                 </p>
               ) : (
                 classes.map((classItem) => (
@@ -1063,7 +1063,7 @@ export default function TeacherDashboard() {
           <Card>
             <CardHeader>
               <CardTitle>Today&apos;s Schedule</CardTitle>
-              <CardDescription>Your classes for today</CardDescription>
+              <CardDescription>Your groups for today</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
@@ -1081,7 +1081,7 @@ export default function TeacherDashboard() {
                   if (todayClasses.length === 0) {
                     return (
                       <div className="text-center py-8 text-muted-foreground">
-                        No classes scheduled for today
+                        No groups scheduled for today
                       </div>
                     );
                   }
@@ -1500,7 +1500,7 @@ export default function TeacherDashboard() {
               selectedClassForAttendance &&
               students.length === 0 && (
                 <div className="text-center py-8 text-muted-foreground">
-                  No students enrolled in this class
+                  No students enrolled in this group
                 </div>
               )}
 
@@ -1566,7 +1566,7 @@ export default function TeacherDashboard() {
               <div className="text-center py-8">
                 <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                 <p className="text-muted-foreground">
-                  No students enrolled in this class yet.
+                  No students enrolled in this group yet.
                 </p>
                 <p className="text-sm text-muted-foreground mt-2">
                   Share the class code with students so they can join.
@@ -1746,7 +1746,7 @@ export default function TeacherDashboard() {
               <Card>
                 <CardHeader>
                   <CardTitle>
-                    Enrolled Classes ({selectedStudent.classes?.length || 0})
+                    Enrolled Groups ({selectedStudent.classes?.length || 0})
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -1909,7 +1909,7 @@ export default function TeacherDashboard() {
                     </div>
                   ) : gradesStudents.length === 0 ? (
                     <div className="text-center py-8 text-muted-foreground">
-                      No students enrolled in this class
+                      No students enrolled in this group
                     </div>
                   ) : (
                     <div className="space-y-2 max-h-[300px] overflow-y-auto">
@@ -2229,7 +2229,7 @@ export default function TeacherDashboard() {
           <DialogHeader>
             <DialogTitle>All Students</DialogTitle>
             <DialogDescription>
-              View all students enrolled in your classes
+              View all students enrolled in your groups
             </DialogDescription>
           </DialogHeader>
 
