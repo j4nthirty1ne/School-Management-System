@@ -38,6 +38,7 @@ import {
   Plus,
   Edit,
   Trash2,
+  TrendingUp,
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
@@ -56,6 +57,7 @@ interface Class {
   subject_id?: string;
   academic_year: string;
   room_number?: string;
+  capacity: number;
   day_of_week?: string;
   start_time?: string;
   end_time?: string;
@@ -102,12 +104,14 @@ export default function TeacherDashboard() {
     subject_id: "",
     academic_year: "",
     room_number: "",
+    capacity: "",
     day_of_week: "",
     start_time: "",
     end_time: "",
   });
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [isUpdating, setIsUpdating] = useState(false);
 
   // Attendance state
   const [showAttendanceDialog, setShowAttendanceDialog] = useState(false);
@@ -151,6 +155,9 @@ export default function TeacherDashboard() {
     new Map()
   );
   const [submittingGrades, setSubmittingGrades] = useState(false);
+  const [classAssignments, setClassAssignments] = useState<any[]>([]);
+  const [selectedAssignmentForGrading, setSelectedAssignmentForGrading] =
+    useState<string>("");
 
   // View Grades state
   const [showViewGradesDialog, setShowViewGradesDialog] = useState(false);
@@ -158,16 +165,76 @@ export default function TeacherDashboard() {
     useState<Class | null>(null);
   const [classGrades, setClassGrades] = useState<any[]>([]);
   const [loadingGrades, setLoadingGrades] = useState(false);
+  const [viewGradesAssignments, setViewGradesAssignments] = useState<any[]>([]);
+  const [selectedViewGradesAssignment, setSelectedViewGradesAssignment] =
+    useState<string>("all");
+  const [showDeleteGradesConfirm, setShowDeleteGradesConfirm] = useState(false);
+  const [deletingGrades, setDeletingGrades] = useState(false);
 
   // View All Students state
   const [showAllStudentsDialog, setShowAllStudentsDialog] = useState(false);
   const [allStudents, setAllStudents] = useState<any[]>([]);
   const [loadingAllStudents, setLoadingAllStudents] = useState(false);
 
+  // View Attendance state
+  const [showViewAttendanceDialog, setShowViewAttendanceDialog] =
+    useState(false);
+  const [selectedClassForViewAttendance, setSelectedClassForViewAttendance] =
+    useState<Class | null>(null);
+  const [attendanceRecordsView, setAttendanceRecordsView] = useState<any[]>([]);
+  const [loadingAttendanceRecords, setLoadingAttendanceRecords] =
+    useState(false);
+  const [attendanceViewDate, setAttendanceViewDate] = useState(
+    new Date().toISOString().split("T")[0]
+  );
+
+  // Schedule Detail Dialog state
+  const [showScheduleDialog, setShowScheduleDialog] = useState(false);
+  const [selectedScheduleClass, setSelectedScheduleClass] =
+    useState<Class | null>(null);
+
+  // Assignment/Quiz state
+  const [showAssignmentDialog, setShowAssignmentDialog] = useState(false);
+  const [assignmentFormData, setAssignmentFormData] = useState({
+    class_id: "",
+    title: "",
+    description: "",
+    type: "assignment",
+    due_date: "",
+    max_score: "100",
+    instructions: "",
+  });
+  const [submittingAssignment, setSubmittingAssignment] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploadingFile, setUploadingFile] = useState(false);
+
+  // View Assignments state
+  const [showViewAssignmentsDialog, setShowViewAssignmentsDialog] =
+    useState(false);
+  const [assignments, setAssignments] = useState<any[]>([]);
+  const [loadingAssignments, setLoadingAssignments] = useState(false);
+
+  // Grade Assignment state
+  const [showGradeAssignmentDialog, setShowGradeAssignmentDialog] =
+    useState(false);
+  const [selectedAssignment, setSelectedAssignment] = useState<any>(null);
+  const [assignmentStudents, setAssignmentStudents] = useState<Student[]>([]);
+  const [loadingAssignmentStudents, setLoadingAssignmentStudents] =
+    useState(false);
+  const [assignmentGrades, setAssignmentGrades] = useState<Map<string, string>>(
+    new Map()
+  );
+  const [submittingAssignmentGrades, setSubmittingAssignmentGrades] =
+    useState(false);
+
   // Stats state
   const [totalStudents, setTotalStudents] = useState(0);
   const [classesThisWeek, setClassesThisWeek] = useState(0);
   const [pendingGrades, setPendingGrades] = useState(0);
+  const [assignmentsCount, setAssignmentsCount] = useState(0);
+
+  // Add a refresh key to force re-renders
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     fetchTeacherData();
@@ -183,7 +250,7 @@ export default function TeacherDashboard() {
 
   const calculateStats = async () => {
     // Calculate total students across all classes
-    let studentIds = new Set();
+    const studentIds = new Set();
     for (const classItem of classes) {
       try {
         const response = await fetch(`/api/classes/${classItem.id}/students`);
@@ -215,6 +282,17 @@ export default function TeacherDashboard() {
     // Calculate pending grades (classes without recent grades)
     // For now, we'll just use a simple count based on classes
     setPendingGrades(classes.length);
+
+    // Fetch assignments count
+    try {
+      const assignmentsResponse = await fetch("/api/assignments");
+      const assignmentsData = await assignmentsResponse.json();
+      if (assignmentsData.success) {
+        setAssignmentsCount(assignmentsData.assignments?.length || 0);
+      }
+    } catch (error) {
+      console.error("Error fetching assignments count:", error);
+    }
   };
 
   const fetchTeacherData = async () => {
@@ -238,11 +316,17 @@ export default function TeacherDashboard() {
 
   const fetchClasses = async () => {
     try {
-      const response = await fetch("/api/classes");
+      // Add cache busting parameter
+      const response = await fetch(`/api/classes?t=${Date.now()}`);
       const data = await response.json();
 
+      console.log("Fetched classes:", data);
+
       if (data.success) {
-        setClasses(data.classes);
+        // Create a new array reference to force re-render
+        const newClasses = [...data.classes];
+        console.log("Setting classes state with:", newClasses);
+        setClasses(newClasses);
       }
     } catch (error) {
       console.error("Error fetching classes:", error);
@@ -266,39 +350,65 @@ export default function TeacherDashboard() {
     e.preventDefault();
     setError("");
     setSuccess("");
+    setIsUpdating(true);
 
     try {
+      // Prepare data, converting empty strings to null for optional fields
+      const payload = {
+        subject_name: formData.subject_name,
+        subject_id: formData.subject_id || null,
+        academic_year: formData.academic_year,
+        room_number: formData.room_number || null,
+        capacity: formData.capacity,
+        day_of_week: formData.day_of_week || null,
+        start_time: formData.start_time || null,
+        end_time: formData.end_time || null,
+      };
+
+      console.log("Adding class with payload:", payload);
+
       const response = await fetch("/api/classes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
 
       const data = await response.json();
 
       if (data.success) {
-        const subjectCode = data.class?.subject_code;
-        const successMsg = subjectCode
-          ? `Class added successfully! Subject Code: ${subjectCode}`
-          : "Class added successfully!";
-        setSuccess(successMsg);
+        // Close dialog and reset form
         setShowAddDialog(false);
         setFormData({
           subject_name: "",
           subject_id: "",
           academic_year: "",
           room_number: "",
+          capacity: "",
           day_of_week: "",
           start_time: "",
           end_time: "",
         });
-        fetchClasses();
+
+        // Fetch updated data
+        await fetchClasses();
+
+        // Increment refresh key to force re-render
+        setRefreshKey((prev) => prev + 1);
+
+        // Show success message with subject code
+        const subjectCode = data.class?.subject_code;
+        const successMsg = subjectCode
+          ? `Class added successfully! Subject Code: ${subjectCode}`
+          : "Class added successfully!";
+        setSuccess(successMsg);
         setTimeout(() => setSuccess(""), 5000);
       } else {
         setError(data.error || "Failed to add class");
       }
     } catch (error) {
       setError("An error occurred while adding the class");
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -308,27 +418,50 @@ export default function TeacherDashboard() {
 
     setError("");
     setSuccess("");
+    setIsUpdating(true);
 
     try {
+      // Prepare data, converting empty strings to null for optional fields
+      const payload = {
+        subject_name: formData.subject_name,
+        subject_id: formData.subject_id || null,
+        academic_year: formData.academic_year,
+        room_number: formData.room_number || null,
+        capacity: formData.capacity,
+        day_of_week: formData.day_of_week || null,
+        start_time: formData.start_time || null,
+        end_time: formData.end_time || null,
+      };
+
       const response = await fetch(`/api/classes/${selectedClass.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
 
       const data = await response.json();
 
       if (data.success) {
-        setSuccess("Class updated successfully!");
+        // Close dialog first
         setShowEditDialog(false);
         setSelectedClass(null);
-        fetchClasses();
+
+        // Fetch updated data
+        await fetchClasses();
+
+        // Increment refresh key to force re-render
+        setRefreshKey((prev) => prev + 1);
+
+        // Show success message after data is refreshed
+        setSuccess("Class updated successfully!");
         setTimeout(() => setSuccess(""), 3000);
       } else {
         setError(data.error || "Failed to update class");
       }
     } catch (error) {
       setError("An error occurred while updating the class");
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -337,6 +470,7 @@ export default function TeacherDashboard() {
 
     setError("");
     setSuccess("");
+    setIsUpdating(true);
 
     try {
       const response = await fetch(`/api/classes/${selectedClass.id}`, {
@@ -346,16 +480,26 @@ export default function TeacherDashboard() {
       const data = await response.json();
 
       if (data.success) {
-        setSuccess("Class deleted successfully!");
+        // Close dialog first
         setShowDeleteDialog(false);
         setSelectedClass(null);
-        fetchClasses();
+
+        // Fetch updated data
+        await fetchClasses();
+
+        // Increment refresh key to force re-render
+        setRefreshKey((prev) => prev + 1);
+
+        // Show success message
+        setSuccess("Class deleted successfully!");
         setTimeout(() => setSuccess(""), 3000);
       } else {
         setError(data.error || "Failed to delete class");
       }
     } catch (error) {
       setError("An error occurred while deleting the class");
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -366,6 +510,7 @@ export default function TeacherDashboard() {
       subject_id: classItem.subject_id || "",
       academic_year: classItem.academic_year,
       room_number: classItem.room_number || "",
+      capacity: classItem.capacity ? classItem.capacity.toString() : "",
       day_of_week: classItem.day_of_week || "",
       start_time: classItem.start_time || "",
       end_time: classItem.end_time || "",
@@ -494,9 +639,7 @@ export default function TeacherDashboard() {
       const data = await response.json();
 
       if (data.success) {
-        setSuccess(
-          `Attendance marked successfully for ${data.count} students!`
-        );
+        setSuccess(data.message || "Attendance marked successfully");
         setTimeout(() => {
           setShowAttendanceDialog(false);
           setSelectedClassForAttendance("");
@@ -568,13 +711,52 @@ export default function TeacherDashboard() {
     setSuccess("");
   };
 
+  // Open grades dialog with pre-selected class
+  const openGradesDialogForClass = async (classItem: Class) => {
+    setSelectedClassForGrades(classItem);
+    setShowGradesDialog(true);
+    setError("");
+    setSuccess("");
+    setLoadingGradesStudents(true);
+    setSelectedAssignmentForGrading("");
+
+    try {
+      // Fetch students
+      const response = await fetch(`/api/classes/${classItem.id}/students`);
+      const data = await response.json();
+
+      if (data.success) {
+        setGradesStudents(data.students);
+      } else {
+        setError(data.error || "Failed to fetch students");
+      }
+
+      // Fetch assignments for this class
+      const assignmentsResponse = await fetch(
+        `/api/assignments?class_id=${classItem.id}`
+      );
+      const assignmentsData = await assignmentsResponse.json();
+
+      if (assignmentsData.success) {
+        setClassAssignments(assignmentsData.assignments || []);
+      }
+    } catch (error) {
+      setError("An error occurred while fetching students");
+      console.error("Error fetching students:", error);
+    } finally {
+      setLoadingGradesStudents(false);
+    }
+  };
+
   // Fetch students for grading when class is selected
   const handleClassSelectionForGrades = async (classId: string) => {
     const selectedClass = classes.find((c) => c.id === classId);
     setSelectedClassForGrades(selectedClass || null);
     setLoadingGradesStudents(true);
+    setSelectedAssignmentForGrading("");
 
     try {
+      // Fetch students
       const response = await fetch(`/api/classes/${classId}/students`);
       const data = await response.json();
 
@@ -583,11 +765,35 @@ export default function TeacherDashboard() {
       } else {
         setError(data.error || "Failed to fetch students");
       }
+
+      // Fetch assignments for this class
+      const assignmentsResponse = await fetch(
+        `/api/assignments?class_id=${classId}`
+      );
+      const assignmentsData = await assignmentsResponse.json();
+
+      if (assignmentsData.success) {
+        setClassAssignments(assignmentsData.assignments || []);
+      }
     } catch (error) {
       setError("An error occurred while fetching students");
       console.error("Error fetching students:", error);
     } finally {
       setLoadingGradesStudents(false);
+    }
+  };
+
+  // Handle assignment selection for grading
+  const handleAssignmentSelection = (assignmentId: string) => {
+    setSelectedAssignmentForGrading(assignmentId);
+    const assignment = classAssignments.find((a) => a.id === assignmentId);
+    if (assignment) {
+      setGradeData({
+        ...gradeData,
+        grade_type: assignment.type,
+        max_score: assignment.max_score.toString(),
+        notes: `Grade for ${assignment.title}`,
+      });
     }
   };
 
@@ -621,6 +827,7 @@ export default function TeacherDashboard() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           class_id: selectedClassForGrades.id,
+          assignment_id: selectedAssignmentForGrading || null,
           grade_type: gradeData.grade_type,
           max_score: parseFloat(gradeData.max_score),
           grade_date: gradeData.grade_date,
@@ -662,50 +869,61 @@ export default function TeacherDashboard() {
     setShowViewGradesDialog(true);
     setLoadingGrades(true);
     setError("");
+    setSelectedViewGradesAssignment("");
 
     try {
-      // Fetch grades
-      const gradesResponse = await fetch(
-        `/api/grades?class_id=${classItem.id}`
+      // Fetch assignments for this class
+      const assignmentsResponse = await fetch(
+        `/api/assignments?class_id=${classItem.id}`
       );
+      const assignmentsData = await assignmentsResponse.json();
+
+      if (assignmentsData.success) {
+        setViewGradesAssignments(assignmentsData.assignments || []);
+      }
+
+      // Fetch all grades initially
+      await loadGradesForClass(classItem.id);
+    } catch (error) {
+      setError("An error occurred while fetching data");
+      console.error("Error:", error);
+    } finally {
+      setLoadingGrades(false);
+    }
+  };
+
+  // Load grades for a class
+  const loadGradesForClass = async (
+    classId: string,
+    filterAssignmentId?: string
+  ) => {
+    try {
+      // Fetch grades
+      const gradesResponse = await fetch(`/api/grades?class_id=${classId}`);
       const gradesData = await gradesResponse.json();
 
       if (!gradesData.success) {
         setError(gradesData.error || "Failed to fetch grades");
-        setLoadingGrades(false);
         return;
       }
 
       // Fetch students to get names
-      const studentsResponse = await fetch(
-        `/api/classes/${classItem.id}/students`
-      );
+      const studentsResponse = await fetch(`/api/classes/${classId}/students`);
       const studentsData = await studentsResponse.json();
 
       if (studentsData.success) {
         // Map student IDs to names
         const studentMap = new Map();
         studentsData.students.forEach((student: any) => {
-          console.log(
-            "Student:",
-            student.id,
-            student.first_name,
-            student.last_name
-          );
           studentMap.set(student.id, {
             name: `${student.first_name} ${student.last_name}`,
             student_code: student.student_id,
           });
         });
 
-        console.log("Student Map:", studentMap);
-        console.log("Grades:", gradesData.grades);
-
         // Add student names to grades
         const gradesWithNames = gradesData.grades.map((grade: any) => {
-          console.log("Mapping grade for student_id:", grade.student_id);
           const studentInfo = studentMap.get(grade.student_id);
-          console.log("Found student info:", studentInfo);
 
           return {
             ...grade,
@@ -714,16 +932,110 @@ export default function TeacherDashboard() {
           };
         });
 
-        console.log("Grades with names:", gradesWithNames);
-        setClassGrades(gradesWithNames);
+        // Filter by assignment if specified
+        let filteredGrades = gradesWithNames;
+        if (filterAssignmentId || selectedViewGradesAssignment) {
+          const assignmentId =
+            filterAssignmentId || selectedViewGradesAssignment;
+          filteredGrades = gradesWithNames.filter((grade) =>
+            grade.notes?.includes(`Assignment ID: ${assignmentId}`)
+          );
+        }
+
+        setClassGrades(filteredGrades);
       } else {
         setClassGrades(gradesData.grades);
       }
     } catch (error) {
-      setError("An error occurred while fetching grades");
-      console.error("Error fetching grades:", error);
+      console.error("Error loading grades:", error);
+    }
+  };
+
+  // Handle assignment selection for viewing grades
+  const handleViewGradesAssignmentChange = (assignmentId: string) => {
+    setSelectedViewGradesAssignment(assignmentId);
+
+    // Reload grades with filter (if not "all")
+    if (selectedClassForViewGrades) {
+      loadGradesForClass(
+        selectedClassForViewGrades.id,
+        assignmentId === "all" ? "" : assignmentId
+      );
+    }
+  };
+
+  // Delete all grades for class
+  const handleDeleteAllGrades = async () => {
+    if (!selectedClassForViewGrades) return;
+
+    setDeletingGrades(true);
+    setError("");
+
+    try {
+      const response = await fetch(
+        `/api/grades?class_id=${selectedClassForViewGrades.id}`,
+        {
+          method: "DELETE",
+        }
+      );
+
+      const data = await response.json();
+
+      if (data.success) {
+        setSuccess("All grades deleted successfully!");
+        setClassGrades([]);
+        setShowDeleteGradesConfirm(false);
+        setTimeout(() => {
+          setSuccess("");
+        }, 3000);
+      } else {
+        setError(data.error || "Failed to delete grades");
+      }
+    } catch (error) {
+      setError("An error occurred while deleting grades");
+      console.error("Error deleting grades:", error);
     } finally {
-      setLoadingGrades(false);
+      setDeletingGrades(false);
+    }
+  };
+
+  // View Attendance function
+  const openViewAttendanceDialog = async (classItem: Class) => {
+    setSelectedClassForViewAttendance(classItem);
+    setShowViewAttendanceDialog(true);
+    setLoadingAttendanceRecords(true);
+    setError("");
+
+    await loadAttendanceRecords(classItem.id, attendanceViewDate);
+  };
+
+  const loadAttendanceRecords = async (classId: string, date: string) => {
+    setLoadingAttendanceRecords(true);
+    try {
+      const response = await fetch(
+        `/api/attendance?class_id=${classId}&date=${date}`
+      );
+      const data = await response.json();
+
+      if (data.success) {
+        setAttendanceRecordsView(data.attendance || []);
+      } else {
+        setError(data.error || "Failed to fetch attendance records");
+        setAttendanceRecordsView([]);
+      }
+    } catch (error) {
+      setError("An error occurred while fetching attendance records");
+      console.error("Error fetching attendance:", error);
+      setAttendanceRecordsView([]);
+    } finally {
+      setLoadingAttendanceRecords(false);
+    }
+  };
+
+  const handleAttendanceDateChange = (date: string) => {
+    setAttendanceViewDate(date);
+    if (selectedClassForViewAttendance) {
+      loadAttendanceRecords(selectedClassForViewAttendance.id, date);
     }
   };
 
@@ -773,6 +1085,319 @@ export default function TeacherDashboard() {
     openStudentProfile(studentId);
   };
 
+  const openScheduleDialog = (classItem: Class) => {
+    setSelectedScheduleClass(classItem);
+    setFormData({
+      subject_name: classItem.subject_name,
+      subject_id: classItem.subject_id || "",
+      academic_year: classItem.academic_year,
+      room_number: classItem.room_number || "",
+      capacity: classItem.capacity ? classItem.capacity.toString() : "",
+      day_of_week: classItem.day_of_week || "",
+      start_time: classItem.start_time || "",
+      end_time: classItem.end_time || "",
+    });
+    setShowScheduleDialog(true);
+  };
+
+  const handleUpdateSchedule = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedScheduleClass) return;
+
+    setError("");
+    setSuccess("");
+    setIsUpdating(true);
+
+    console.log("=== UPDATE SCHEDULE START ===");
+    console.log("Selected class:", selectedScheduleClass);
+    console.log("Form data to send:", formData);
+
+    try {
+      // Prepare data, converting empty strings to null for optional fields
+      const payload = {
+        subject_name: formData.subject_name,
+        subject_id: formData.subject_id || null,
+        academic_year: formData.academic_year,
+        room_number: formData.room_number || null,
+        capacity: formData.capacity,
+        day_of_week: formData.day_of_week || null,
+        start_time: formData.start_time || null,
+        end_time: formData.end_time || null,
+      };
+
+      console.log("Payload to send:", payload);
+
+      const response = await fetch(`/api/classes/${selectedScheduleClass.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+
+      console.log("Update response status:", response.status);
+      console.log("Update response data:", data);
+
+      if (data.success) {
+        console.log(
+          "Update successful! Closing dialog and fetching new data..."
+        );
+
+        // Close dialog first
+        setShowScheduleDialog(false);
+        setSelectedScheduleClass(null);
+
+        // Wait a bit for the server to finish processing
+        await new Promise((resolve) => setTimeout(resolve, 100));
+
+        // Fetch updated data
+        console.log("Fetching updated classes...");
+        await fetchClasses();
+        console.log("Classes fetched successfully");
+
+        // Increment refresh key to force re-render
+        setRefreshKey((prev) => {
+          console.log("Incrementing refreshKey from", prev, "to", prev + 1);
+          return prev + 1;
+        });
+
+        // Show success message
+        setSuccess("Schedule updated successfully!");
+        setTimeout(() => setSuccess(""), 3000);
+        console.log("=== UPDATE SCHEDULE COMPLETE ===");
+      } else {
+        console.error("Update failed:", data.error);
+        setError(data.error || "Failed to update schedule");
+      }
+    } catch (error) {
+      console.error("Error updating schedule:", error);
+      setError("An error occurred while updating the schedule");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const openAssignmentDialog = () => {
+    setAssignmentFormData({
+      class_id: "",
+      title: "",
+      description: "",
+      type: "assignment",
+      due_date: new Date().toISOString().split("T")[0],
+      max_score: "100",
+      instructions: "",
+    });
+    setSelectedFile(null);
+    setShowAssignmentDialog(true);
+    setError("");
+    setSuccess("");
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Validate file size (max 10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        setError("File size must be less than 10MB");
+        return;
+      }
+      setSelectedFile(file);
+      setError("");
+    }
+  };
+
+  const fetchAssignments = async () => {
+    setLoadingAssignments(true);
+    try {
+      const response = await fetch("/api/assignments");
+      const data = await response.json();
+
+      if (data.success) {
+        setAssignments(data.assignments || []);
+      } else {
+        console.error("Failed to fetch assignments:", data.error);
+      }
+    } catch (error) {
+      console.error("Error fetching assignments:", error);
+    } finally {
+      setLoadingAssignments(false);
+    }
+  };
+
+  const openViewAssignmentsDialog = () => {
+    setShowViewAssignmentsDialog(true);
+    fetchAssignments();
+  };
+
+  const openGradeAssignmentDialog = async (assignment: any) => {
+    setSelectedAssignment(assignment);
+    setShowGradeAssignmentDialog(true);
+    setLoadingAssignmentStudents(true);
+    setError("");
+
+    try {
+      // Fetch students from the class
+      const response = await fetch(
+        `/api/classes/${assignment.class_id}/students`
+      );
+      const data = await response.json();
+
+      if (data.success) {
+        setAssignmentStudents(data.students);
+        // Initialize grades map
+        setAssignmentGrades(new Map());
+      } else {
+        setError(data.error || "Failed to fetch students");
+      }
+    } catch (error) {
+      setError("An error occurred while fetching students");
+      console.error("Error fetching students:", error);
+    } finally {
+      setLoadingAssignmentStudents(false);
+    }
+  };
+
+  const handleSubmitAssignmentGrades = async () => {
+    if (!selectedAssignment) {
+      setError("No assignment selected");
+      return;
+    }
+
+    // Check if at least one grade is entered
+    if (assignmentGrades.size === 0) {
+      setError("Please enter at least one grade");
+      return;
+    }
+
+    setSubmittingAssignmentGrades(true);
+    setError("");
+
+    try {
+      const gradesArray = Array.from(assignmentGrades.entries()).map(
+        ([student_id, score]) => ({
+          student_id,
+          score: parseFloat(score) || 0,
+        })
+      );
+
+      const response = await fetch("/api/grades", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          class_id: selectedAssignment.class_id,
+          assignment_id: selectedAssignment.id,
+          grade_type: selectedAssignment.type,
+          max_score: selectedAssignment.max_score,
+          grade_date: new Date().toISOString().split("T")[0],
+          notes: `Grade for ${selectedAssignment.title}`,
+          grades: gradesArray,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setSuccess(`Grades submitted successfully for ${data.count} students!`);
+        // Reset form
+        setAssignmentGrades(new Map());
+        setTimeout(() => {
+          setShowGradeAssignmentDialog(false);
+          setSelectedAssignment(null);
+          setSuccess("");
+        }, 2000);
+      } else {
+        setError(data.error || "Failed to submit grades");
+      }
+    } catch (error) {
+      setError("An error occurred while submitting grades");
+      console.error("Error submitting grades:", error);
+    } finally {
+      setSubmittingAssignmentGrades(false);
+    }
+  };
+
+  const handleSubmitAssignment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setSuccess("");
+    setSubmittingAssignment(true);
+
+    try {
+      let fileUrl = null;
+
+      // Upload file if selected
+      if (selectedFile) {
+        setUploadingFile(true);
+        const formData = new FormData();
+        formData.append("file", selectedFile);
+
+        const uploadResponse = await fetch("/api/storage/assignments/upload", {
+          method: "POST",
+          body: formData,
+        });
+
+        const uploadData = await uploadResponse.json();
+
+        console.log("File upload response:", uploadData);
+
+        if (uploadData.success) {
+          fileUrl = uploadData.url;
+        } else {
+          setError(uploadData.error || "Failed to upload file");
+          setUploadingFile(false);
+          setSubmittingAssignment(false);
+          return;
+        }
+        setUploadingFile(false);
+      }
+
+      // Prepare data, converting empty strings to null
+      const payload = {
+        class_id: assignmentFormData.class_id || null,
+        title: assignmentFormData.title,
+        description: assignmentFormData.description || null,
+        type: assignmentFormData.type,
+        due_date: assignmentFormData.due_date || null,
+        max_score: parseInt(assignmentFormData.max_score) || 100,
+        instructions: assignmentFormData.instructions || null,
+        file_url: fileUrl,
+        file_name: selectedFile?.name || null,
+      };
+
+      console.log("Sending assignment payload:", payload);
+
+      const response = await fetch("/api/assignments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+
+      console.log("Assignment API response:", data);
+
+      if (data.success) {
+        setShowAssignmentDialog(false);
+        setSelectedFile(null);
+        setSuccess(
+          `${
+            assignmentFormData.type === "quiz" ? "Quiz" : "Assignment"
+          } created successfully!`
+        );
+        setTimeout(() => setSuccess(""), 5000);
+      } else {
+        console.error("Assignment creation failed:", data.error);
+        setError(data.error || "Failed to create assignment");
+      }
+    } catch (error) {
+      console.error("Assignment submission error:", error);
+      setError("An error occurred while creating the assignment");
+    } finally {
+      setSubmittingAssignment(false);
+      setUploadingFile(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -789,7 +1414,7 @@ export default function TeacherDashboard() {
           <div>
             <h1 className="text-2xl font-bold">Teacher Portal</h1>
             <p className="text-sm text-muted-foreground">
-              Welcome back, {teacher?.first_name} {teacher?.last_name}
+              Welcome back : {teacher?.first_name} {teacher?.last_name}
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -892,15 +1517,18 @@ export default function TeacherDashboard() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card
+            className="cursor-pointer hover:bg-muted/50 transition-colors"
+            onClick={openViewAssignmentsDialog}
+          >
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Pending</CardTitle>
+              <CardTitle className="text-sm font-medium">Assignments</CardTitle>
               <FileText className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{pendingGrades}</div>
+              <div className="text-2xl font-bold">{assignmentsCount}</div>
               <p className="text-xs text-muted-foreground">
-                Assignments to grade
+                Total assignments • Click to view
               </p>
             </CardContent>
           </Card>
@@ -930,7 +1558,7 @@ export default function TeacherDashboard() {
         )}
 
         {/* Class Management Section */}
-        <Card className="mb-8">
+        <Card className="mb-8" key={`classes-card-${refreshKey}`}>
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
@@ -953,7 +1581,7 @@ export default function TeacherDashboard() {
               ) : (
                 classes.map((classItem) => (
                   <div
-                    key={classItem.id}
+                    key={`class-item-${classItem.id}-${refreshKey}`}
                     className="flex items-center justify-between p-4 border rounded-lg"
                   >
                     <div className="flex-1">
@@ -972,9 +1600,10 @@ export default function TeacherDashboard() {
                         ) : (
                           <span className="text-amber-600">No code yet • </span>
                         )}
-                        {classItem.academic_year}
+                        {classItem.academic_year} •
                         {classItem.room_number &&
-                          ` • Room ${classItem.room_number}`}
+                          ` Room ${classItem.room_number} • `}
+                        Capacity: {classItem.capacity}
                       </p>
                       {classItem.day_of_week && classItem.start_time && (
                         <p className="text-sm text-muted-foreground">
@@ -998,7 +1627,7 @@ export default function TeacherDashboard() {
                         variant="outline"
                         size="sm"
                         onClick={() => openViewGradesDialog(classItem)}
-                        title="View Grades"
+                        title="View All Grades"
                       >
                         <FileText className="h-4 w-4" />
                       </Button>
@@ -1044,10 +1673,40 @@ export default function TeacherDashboard() {
               <Button
                 className="w-full justify-start"
                 variant="outline"
+                onClick={() => {
+                  if (classes.length > 0) {
+                    openViewAttendanceDialog(classes[0]);
+                  } else {
+                    setError("No classes available");
+                  }
+                }}
+              >
+                <Calendar className="h-4 w-4 mr-2" />
+                View Attendance
+              </Button>
+              <Button
+                className="w-full justify-start"
+                variant="outline"
                 onClick={openGradesDialog}
               >
                 <FileText className="h-4 w-4 mr-2" />
                 Enter Grades
+              </Button>
+              <Button
+                className="w-full justify-start"
+                variant="outline"
+                onClick={openAssignmentDialog}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Create Assignment/Quiz
+              </Button>
+              <Button
+                className="w-full justify-start"
+                variant="outline"
+                onClick={openViewAssignmentsDialog}
+              >
+                <FileText className="h-4 w-4 mr-2" />
+                View Assignments
               </Button>
               <Button
                 className="w-full justify-start"
@@ -1060,13 +1719,18 @@ export default function TeacherDashboard() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card key={`schedule-card-${refreshKey}`}>
             <CardHeader>
               <CardTitle>Today&apos;s Schedule</CardTitle>
               <CardDescription>Your groups for today</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
+              <div
+                className="space-y-4"
+                key={`schedule-${classes.length}-${classes
+                  .map((c) => c.updated_at)
+                  .join("-")}`}
+              >
                 {(() => {
                   const today = new Date().toLocaleDateString("en-US", {
                     weekday: "long",
@@ -1078,18 +1742,27 @@ export default function TeacherDashboard() {
                       return a.start_time.localeCompare(b.start_time);
                     });
 
+                  console.log("Today is:", today);
+                  console.log("Today classes:", todayClasses);
+                  console.log("All classes:", classes);
+
                   if (todayClasses.length === 0) {
                     return (
                       <div className="text-center py-8 text-muted-foreground">
+<<<<<<< HEAD
                         No groups scheduled for today
+=======
+                        No classes scheduled for today ({today})
+>>>>>>> 08a3fa3b81e447705fdcfc4d17c4f686990b68c0
                       </div>
                     );
                   }
 
                   return todayClasses.map((classItem) => (
                     <div
-                      key={classItem.id}
-                      className="flex items-center justify-between p-3 border rounded-lg"
+                      key={`class-${classItem.id}-${classItem.start_time}-${classItem.end_time}-${refreshKey}`}
+                      className="flex items-center justify-between p-3 border rounded-lg cursor-pointer hover:bg-accent hover:shadow-md transition-all"
+                      onClick={() => openScheduleDialog(classItem)}
                     >
                       <div>
                         <p className="font-medium">{classItem.subject_name}</p>
@@ -1099,10 +1772,15 @@ export default function TeacherDashboard() {
                             `${formatTime(classItem.start_time)} - ${formatTime(
                               classItem.end_time
                             )}`}
+                          {classItem.room_number &&
+                            ` • Room ${classItem.room_number}`}
                         </p>
                       </div>
-                      <div className="text-sm font-medium text-primary">
-                        {classItem.room_number || "No room"}
+                      <div className="flex items-center gap-2">
+                        <div className="text-sm font-medium text-primary">
+                          {classItem.subject_code || "N/A"}
+                        </div>
+                        <Edit className="h-4 w-4 text-muted-foreground" />
                       </div>
                     </div>
                   ));
@@ -1135,17 +1813,32 @@ export default function TeacherDashboard() {
                 required
               />
             </div>
-            <div>
-              <Label htmlFor="academic_year">Academic Year *</Label>
-              <Input
-                id="academic_year"
-                value={formData.academic_year}
-                onChange={(e) =>
-                  setFormData({ ...formData, academic_year: e.target.value })
-                }
-                placeholder="2024-2025"
-                required
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="academic_year">Academic Year *</Label>
+                <Input
+                  id="academic_year"
+                  value={formData.academic_year}
+                  onChange={(e) =>
+                    setFormData({ ...formData, academic_year: e.target.value })
+                  }
+                  placeholder="2024-2025"
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="capacity">Capacity *</Label>
+                <Input
+                  id="capacity"
+                  type="number"
+                  value={formData.capacity}
+                  onChange={(e) =>
+                    setFormData({ ...formData, capacity: e.target.value })
+                  }
+                  placeholder="30"
+                  required
+                />
+              </div>
             </div>
             <div>
               <Label htmlFor="room_number">Room Number</Label>
@@ -1209,10 +1902,13 @@ export default function TeacherDashboard() {
                 type="button"
                 variant="outline"
                 onClick={() => setShowAddDialog(false)}
+                disabled={isUpdating}
               >
                 Cancel
               </Button>
-              <Button type="submit">Add Class</Button>
+              <Button type="submit" disabled={isUpdating}>
+                {isUpdating ? "Adding..." : "Add Class"}
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -1237,16 +1933,30 @@ export default function TeacherDashboard() {
                 required
               />
             </div>
-            <div>
-              <Label htmlFor="edit_academic_year">Academic Year *</Label>
-              <Input
-                id="edit_academic_year"
-                value={formData.academic_year}
-                onChange={(e) =>
-                  setFormData({ ...formData, academic_year: e.target.value })
-                }
-                required
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="edit_academic_year">Academic Year *</Label>
+                <Input
+                  id="edit_academic_year"
+                  value={formData.academic_year}
+                  onChange={(e) =>
+                    setFormData({ ...formData, academic_year: e.target.value })
+                  }
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit_capacity">Capacity *</Label>
+                <Input
+                  id="edit_capacity"
+                  type="number"
+                  value={formData.capacity}
+                  onChange={(e) =>
+                    setFormData({ ...formData, capacity: e.target.value })
+                  }
+                  required
+                />
+              </div>
             </div>
             <div>
               <Label htmlFor="edit_room_number">Room Number</Label>
@@ -1309,10 +2019,13 @@ export default function TeacherDashboard() {
                 type="button"
                 variant="outline"
                 onClick={() => setShowEditDialog(false)}
+                disabled={isUpdating}
               >
                 Cancel
               </Button>
-              <Button type="submit">Update Class</Button>
+              <Button type="submit" disabled={isUpdating}>
+                {isUpdating ? "Updating..." : "Update Class"}
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -1332,11 +2045,16 @@ export default function TeacherDashboard() {
             <Button
               variant="outline"
               onClick={() => setShowDeleteDialog(false)}
+              disabled={isUpdating}
             >
               Cancel
             </Button>
-            <Button variant="destructive" onClick={handleDeleteClass}>
-              Delete
+            <Button
+              variant="destructive"
+              onClick={handleDeleteClass}
+              disabled={isUpdating}
+            >
+              {isUpdating ? "Deleting..." : "Delete"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1678,14 +2396,16 @@ export default function TeacherDashboard() {
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Email</p>
-                    <p className="font-semibold">{selectedStudent.email}</p>
+                    <p className="font-semibold">
+                      {selectedStudent.email || "N/A"}
+                    </p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">
                       Phone Number
                     </p>
                     <p className="font-semibold">
-                      {selectedStudent.phone_number}
+                      {selectedStudent.phone || "N/A"}
                     </p>
                   </div>
                   <div>
@@ -1703,13 +2423,74 @@ export default function TeacherDashboard() {
                   <div>
                     <p className="text-sm text-muted-foreground">Gender</p>
                     <p className="font-semibold capitalize">
-                      {selectedStudent.gender}
+                      {selectedStudent.gender || "N/A"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">
+                      Enrollment Status
+                    </p>
+                    <p className="font-semibold capitalize">
+                      <Badge
+                        variant={
+                          selectedStudent.enrollment_status === "active"
+                            ? "default"
+                            : "secondary"
+                        }
+                      >
+                        {selectedStudent.enrollment_status}
+                      </Badge>
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">
+                      Enrollment Date
+                    </p>
+                    <p className="font-semibold">
+                      {selectedStudent.enrollment_date
+                        ? new Date(
+                            selectedStudent.enrollment_date
+                          ).toLocaleDateString()
+                        : "N/A"}
                     </p>
                   </div>
                   <div className="col-span-2">
                     <p className="text-sm text-muted-foreground">Address</p>
-                    <p className="font-semibold">{selectedStudent.address}</p>
+                    <p className="font-semibold">
+                      {selectedStudent.address || "N/A"}
+                    </p>
                   </div>
+                  {(selectedStudent.emergency_contact_name ||
+                    selectedStudent.emergency_contact_phone) && (
+                    <>
+                      <div>
+                        <p className="text-sm text-muted-foreground">
+                          Emergency Contact
+                        </p>
+                        <p className="font-semibold">
+                          {selectedStudent.emergency_contact_name || "N/A"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">
+                          Emergency Phone
+                        </p>
+                        <p className="font-semibold">
+                          {selectedStudent.emergency_contact_phone || "N/A"}
+                        </p>
+                      </div>
+                    </>
+                  )}
+                  {selectedStudent.medical_notes && (
+                    <div className="col-span-2">
+                      <p className="text-sm text-muted-foreground">
+                        Medical Notes
+                      </p>
+                      <p className="font-semibold">
+                        {selectedStudent.medical_notes}
+                      </p>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
@@ -1829,30 +2610,36 @@ export default function TeacherDashboard() {
               </Select>
             </div>
 
-            {/* Assignment Details */}
+            {/* Assignment Selection */}
             {selectedClassForGrades && (
               <>
+                <div className="space-y-2">
+                  <Label htmlFor="assignment-select">Select Assignment *</Label>
+                  <Select
+                    value={selectedAssignmentForGrading}
+                    onValueChange={handleAssignmentSelection}
+                  >
+                    <SelectTrigger id="assignment-select">
+                      <SelectValue placeholder="Choose an assignment" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {classAssignments.length === 0 ? (
+                        <SelectItem value="none" disabled>
+                          No assignments available
+                        </SelectItem>
+                      ) : (
+                        classAssignments.map((assignment) => (
+                          <SelectItem key={assignment.id} value={assignment.id}>
+                            {assignment.title} ({assignment.type}) - Max:{" "}
+                            {assignment.max_score}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="grade-type">Assessment Type *</Label>
-                    <Select
-                      value={gradeData.grade_type}
-                      onValueChange={(value) =>
-                        setGradeData({ ...gradeData, grade_type: value })
-                      }
-                    >
-                      <SelectTrigger id="grade-type">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="quiz">Quiz</SelectItem>
-                        <SelectItem value="assignment">Assignment</SelectItem>
-                        <SelectItem value="midterm">Midterm</SelectItem>
-                        <SelectItem value="final">Final</SelectItem>
-                        <SelectItem value="project">Project</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
                   <div className="space-y-2">
                     <Label htmlFor="max-score">Max Score *</Label>
                     <Input
@@ -2015,6 +2802,32 @@ export default function TeacherDashboard() {
           </DialogHeader>
 
           <div className="space-y-4">
+            {/* Assignment Filter */}
+            {selectedClassForViewGrades && viewGradesAssignments.length > 0 && (
+              <div className="space-y-2">
+                <Label htmlFor="view-grades-assignment">
+                  Filter by Assignment (Optional)
+                </Label>
+                <Select
+                  value={selectedViewGradesAssignment}
+                  onValueChange={handleViewGradesAssignmentChange}
+                >
+                  <SelectTrigger id="view-grades-assignment">
+                    <SelectValue placeholder="All assignments" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All assignments</SelectItem>
+                    {viewGradesAssignments.map((assignment) => (
+                      <SelectItem key={assignment.id} value={assignment.id}>
+                        {assignment.title} ({assignment.type}) - Max:{" "}
+                        {assignment.max_score}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             {loadingGrades ? (
               <div className="text-center py-12 text-muted-foreground">
                 Loading grades...
@@ -2032,6 +2845,97 @@ export default function TeacherDashboard() {
             ) : (
               <div className="overflow-x-auto">
                 {(() => {
+                  // If filtering by specific assignment, show simple table
+                  if (
+                    selectedViewGradesAssignment &&
+                    selectedViewGradesAssignment !== "all"
+                  ) {
+                    const assignment = viewGradesAssignments.find(
+                      (a) => a.id === selectedViewGradesAssignment
+                    );
+                    return (
+                      <div className="space-y-4">
+                        {assignment && (
+                          <div className="p-4 bg-muted/50 rounded-lg">
+                            <h3 className="font-semibold">
+                              {assignment.title}
+                            </h3>
+                            <p className="text-sm text-muted-foreground">
+                              Type: {assignment.type} • Max Score:{" "}
+                              {assignment.max_score}
+                            </p>
+                          </div>
+                        )}
+                        <table className="w-full border-collapse">
+                          <thead>
+                            <tr className="border-b bg-muted/50">
+                              <th className="p-3 text-left font-semibold">
+                                Student
+                              </th>
+                              <th className="p-3 text-center font-semibold">
+                                Score
+                              </th>
+                              <th className="p-3 text-center font-semibold">
+                                Percentage
+                              </th>
+                              <th className="p-3 text-left font-semibold">
+                                Notes
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {classGrades.map((grade) => {
+                              const percentage =
+                                grade.percentage ||
+                                ((grade.score / grade.max_score) * 100).toFixed(
+                                  1
+                                );
+                              const percentageColor =
+                                parseFloat(percentage) >= 80
+                                  ? "text-green-600"
+                                  : parseFloat(percentage) >= 60
+                                  ? "text-yellow-600"
+                                  : "text-red-600";
+                              return (
+                                <tr
+                                  key={grade.id}
+                                  className="border-b hover:bg-muted/30"
+                                >
+                                  <td className="p-3">
+                                    <div>
+                                      <p className="font-semibold">
+                                        {grade.student_name}
+                                      </p>
+                                      <p className="text-xs text-muted-foreground">
+                                        ID: {grade.student_code}
+                                      </p>
+                                    </div>
+                                  </td>
+                                  <td className="p-3 text-center">
+                                    <div className="text-lg font-bold">
+                                      {grade.score}/{grade.max_score}
+                                    </div>
+                                  </td>
+                                  <td className="p-3 text-center">
+                                    <div
+                                      className={`text-lg font-bold ${percentageColor}`}
+                                    >
+                                      {percentage}%
+                                    </div>
+                                  </td>
+                                  <td className="p-3 text-sm text-muted-foreground">
+                                    {grade.notes || "-"}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    );
+                  }
+
+                  // Show all grades grouped by assessment type
                   // Group grades by student
                   const studentGradesMap = new Map();
                   classGrades.forEach((grade) => {
@@ -2212,9 +3116,43 @@ export default function TeacherDashboard() {
                 setShowViewGradesDialog(false);
                 setSelectedClassForViewGrades(null);
                 setClassGrades([]);
+                setSelectedViewGradesAssignment("all");
               }}
             >
               Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Grades Confirmation Dialog */}
+      <Dialog
+        open={showDeleteGradesConfirm}
+        onOpenChange={setShowDeleteGradesConfirm}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete All Grades</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete all grades for{" "}
+              {selectedClassForViewGrades?.subject_name}? This action cannot be
+              undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowDeleteGradesConfirm(false)}
+              disabled={deletingGrades}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteAllGrades}
+              disabled={deletingGrades}
+            >
+              {deletingGrades ? "Deleting..." : "Delete All Grades"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -2336,6 +3274,860 @@ export default function TeacherDashboard() {
               onClick={() => {
                 setShowAllStudentsDialog(false);
                 setAllStudents([]);
+              }}
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Schedule Detail Dialog */}
+      <Dialog open={showScheduleDialog} onOpenChange={setShowScheduleDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Class Schedule</DialogTitle>
+            <DialogDescription>
+              Update the schedule and details for{" "}
+              {selectedScheduleClass?.subject_name}
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleUpdateSchedule} className="space-y-4">
+            <div>
+              <Label htmlFor="schedule_subject_name">Subject Name *</Label>
+              <Input
+                id="schedule_subject_name"
+                value={formData.subject_name}
+                onChange={(e) =>
+                  setFormData({ ...formData, subject_name: e.target.value })
+                }
+                required
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="schedule_academic_year">Academic Year *</Label>
+                <Input
+                  id="schedule_academic_year"
+                  value={formData.academic_year}
+                  onChange={(e) =>
+                    setFormData({ ...formData, academic_year: e.target.value })
+                  }
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="schedule_capacity">Capacity *</Label>
+                <Input
+                  id="schedule_capacity"
+                  type="number"
+                  value={formData.capacity}
+                  onChange={(e) =>
+                    setFormData({ ...formData, capacity: e.target.value })
+                  }
+                  required
+                />
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="schedule_room_number">Room Number</Label>
+              <Input
+                id="schedule_room_number"
+                value={formData.room_number}
+                onChange={(e) =>
+                  setFormData({ ...formData, room_number: e.target.value })
+                }
+                placeholder="301"
+              />
+            </div>
+            <div>
+              <Label htmlFor="schedule_day_of_week">Day of Week *</Label>
+              <Select
+                value={formData.day_of_week}
+                onValueChange={(value) =>
+                  setFormData({ ...formData, day_of_week: value })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select day" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Monday">Monday</SelectItem>
+                  <SelectItem value="Tuesday">Tuesday</SelectItem>
+                  <SelectItem value="Wednesday">Wednesday</SelectItem>
+                  <SelectItem value="Thursday">Thursday</SelectItem>
+                  <SelectItem value="Friday">Friday</SelectItem>
+                  <SelectItem value="Saturday">Saturday</SelectItem>
+                  <SelectItem value="Sunday">Sunday</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="schedule_start_time">Start Time *</Label>
+                <Input
+                  id="schedule_start_time"
+                  type="time"
+                  value={formData.start_time}
+                  onChange={(e) =>
+                    setFormData({ ...formData, start_time: e.target.value })
+                  }
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="schedule_end_time">End Time *</Label>
+                <Input
+                  id="schedule_end_time"
+                  type="time"
+                  value={formData.end_time}
+                  onChange={(e) =>
+                    setFormData({ ...formData, end_time: e.target.value })
+                  }
+                  required
+                />
+              </div>
+            </div>
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setShowScheduleDialog(false);
+                  setSelectedScheduleClass(null);
+                  setError("");
+                }}
+                disabled={isUpdating}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isUpdating}>
+                {isUpdating ? "Updating..." : "Update Schedule"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Assignment/Quiz Dialog */}
+      <Dialog
+        open={showAssignmentDialog}
+        onOpenChange={setShowAssignmentDialog}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create Assignment/Quiz</DialogTitle>
+            <DialogDescription>
+              Add a new assignment or quiz for your students
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSubmitAssignment} className="space-y-4">
+            <div>
+              <Label htmlFor="assignment_type">Type *</Label>
+              <Select
+                value={assignmentFormData.type}
+                onValueChange={(value) =>
+                  setAssignmentFormData({ ...assignmentFormData, type: value })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="assignment">Assignment</SelectItem>
+                  <SelectItem value="quiz">Quiz</SelectItem>
+                  <SelectItem value="homework">Homework</SelectItem>
+                  <SelectItem value="project">Project</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="assignment_class">Class *</Label>
+              <Select
+                value={assignmentFormData.class_id}
+                onValueChange={(value) =>
+                  setAssignmentFormData({
+                    ...assignmentFormData,
+                    class_id: value,
+                  })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a class" />
+                </SelectTrigger>
+                <SelectContent>
+                  {classes.map((classItem) => (
+                    <SelectItem key={classItem.id} value={classItem.id}>
+                      {classItem.subject_name} ({classItem.subject_code})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="assignment_title">Title *</Label>
+              <Input
+                id="assignment_title"
+                value={assignmentFormData.title}
+                onChange={(e) =>
+                  setAssignmentFormData({
+                    ...assignmentFormData,
+                    title: e.target.value,
+                  })
+                }
+                placeholder="Chapter 5 Quiz"
+                required
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="assignment_description">Description</Label>
+              <Input
+                id="assignment_description"
+                value={assignmentFormData.description}
+                onChange={(e) =>
+                  setAssignmentFormData({
+                    ...assignmentFormData,
+                    description: e.target.value,
+                  })
+                }
+                placeholder="Quiz covering chapters 1-5"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="assignment_due_date">Due Date *</Label>
+                <Input
+                  id="assignment_due_date"
+                  type="date"
+                  value={assignmentFormData.due_date}
+                  onChange={(e) =>
+                    setAssignmentFormData({
+                      ...assignmentFormData,
+                      due_date: e.target.value,
+                    })
+                  }
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="assignment_max_score">Max Score *</Label>
+                <Input
+                  id="assignment_max_score"
+                  type="number"
+                  value={assignmentFormData.max_score}
+                  onChange={(e) =>
+                    setAssignmentFormData({
+                      ...assignmentFormData,
+                      max_score: e.target.value,
+                    })
+                  }
+                  required
+                />
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="assignment_instructions">Instructions</Label>
+              <Input
+                id="assignment_instructions"
+                value={assignmentFormData.instructions}
+                onChange={(e) =>
+                  setAssignmentFormData({
+                    ...assignmentFormData,
+                    instructions: e.target.value,
+                  })
+                }
+                placeholder="Complete all questions and submit before due date"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="assignment_file">Attach File (Optional)</Label>
+              <div className="space-y-2">
+                <Input
+                  id="assignment_file"
+                  type="file"
+                  onChange={handleFileChange}
+                  accept=".pdf,.doc,.docx,.ppt,.pptx,.txt,.zip,.jpg,.jpeg,.png"
+                  className="cursor-pointer"
+                />
+                {selectedFile && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <FileText className="h-4 w-4" />
+                    <span>{selectedFile.name}</span>
+                    <span className="text-xs">
+                      ({(selectedFile.size / 1024).toFixed(2)} KB)
+                    </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setSelectedFile(null)}
+                      className="h-6 w-6 p-0"
+                    >
+                      ×
+                    </Button>
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Supported: PDF, DOC, DOCX, PPT, PPTX, TXT, ZIP, Images (Max
+                  10MB)
+                </p>
+              </div>
+            </div>
+
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+            {success && (
+              <Alert>
+                <AlertDescription>{success}</AlertDescription>
+              </Alert>
+            )}
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setShowAssignmentDialog(false);
+                  setSelectedFile(null);
+                  setError("");
+                  setSuccess("");
+                }}
+                disabled={submittingAssignment || uploadingFile}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={submittingAssignment || uploadingFile}
+              >
+                {uploadingFile
+                  ? "Uploading..."
+                  : submittingAssignment
+                  ? "Creating..."
+                  : "Create"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Assignments Dialog */}
+      <Dialog
+        open={showViewAssignmentsDialog}
+        onOpenChange={setShowViewAssignmentsDialog}
+      >
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>All Assignments & Quizzes</DialogTitle>
+            <DialogDescription>
+              View and manage all assignments and quizzes you&apos;ve created
+            </DialogDescription>
+          </DialogHeader>
+
+          {loadingAssignments ? (
+            <div className="py-8 text-center">
+              <div className="text-muted-foreground">
+                Loading assignments...
+              </div>
+            </div>
+          ) : assignments.length === 0 ? (
+            <div className="py-8 text-center">
+              <FileText className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+              <p className="text-muted-foreground">
+                No assignments created yet
+              </p>
+              <Button
+                variant="outline"
+                className="mt-4"
+                onClick={() => {
+                  setShowViewAssignmentsDialog(false);
+                  openAssignmentDialog();
+                }}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Create Your First Assignment
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {assignments.map((assignment) => {
+                const classInfo = classes.find(
+                  (c) => c.id === assignment.class_id
+                );
+                const dueDate = assignment.due_date
+                  ? new Date(assignment.due_date)
+                  : null;
+                const isOverdue = dueDate && dueDate < new Date();
+
+                return (
+                  <Card key={assignment.id}>
+                    <CardContent className="pt-6">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Badge
+                              variant={
+                                assignment.type === "quiz"
+                                  ? "default"
+                                  : "secondary"
+                              }
+                            >
+                              {assignment.type}
+                            </Badge>
+                            {classInfo && (
+                              <Badge variant="outline">
+                                {classInfo.subject_name} (
+                                {classInfo.subject_code})
+                              </Badge>
+                            )}
+                            {isOverdue && (
+                              <Badge variant="destructive">Overdue</Badge>
+                            )}
+                          </div>
+
+                          <h3 className="font-semibold text-lg mb-1">
+                            {assignment.title}
+                          </h3>
+
+                          {assignment.description && (
+                            <p className="text-sm text-muted-foreground mb-3">
+                              {assignment.description}
+                            </p>
+                          )}
+
+                          <div className="grid grid-cols-2 gap-2 text-sm">
+                            {assignment.due_date && (
+                              <div className="flex items-center gap-1">
+                                <Calendar className="h-4 w-4 text-muted-foreground" />
+                                <span>
+                                  Due:{" "}
+                                  {new Date(
+                                    assignment.due_date
+                                  ).toLocaleDateString()}
+                                </span>
+                              </div>
+                            )}
+                            <div className="flex items-center gap-1">
+                              <FileText className="h-4 w-4 text-muted-foreground" />
+                              <span>Max Score: {assignment.max_score}</span>
+                            </div>
+                          </div>
+
+                          {assignment.instructions && (
+                            <p className="text-sm mt-2 text-muted-foreground">
+                              <strong>Instructions:</strong>{" "}
+                              {assignment.instructions}
+                            </p>
+                          )}
+
+                          {assignment.file_url && (
+                            <div className="mt-3 flex items-center gap-2 p-2 bg-muted rounded">
+                              <FileText className="h-4 w-4" />
+                              <a
+                                href={assignment.file_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-sm text-primary hover:underline flex-1 truncate"
+                              >
+                                {assignment.file_name || "Download attachment"}
+                              </a>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="ml-4 flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setShowViewAssignmentsDialog(false);
+                              openGradeAssignmentDialog(assignment);
+                            }}
+                          >
+                            <FileText className="h-4 w-4 mr-2" />
+                            Grade Students
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 pt-3 border-t text-xs text-muted-foreground">
+                        Created{" "}
+                        {new Date(assignment.created_at).toLocaleDateString()}{" "}
+                        at{" "}
+                        {new Date(assignment.created_at).toLocaleTimeString()}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowViewAssignmentsDialog(false)}
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Grade Assignment Dialog */}
+      <Dialog
+        open={showGradeAssignmentDialog}
+        onOpenChange={setShowGradeAssignmentDialog}
+      >
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Grade Assignment</DialogTitle>
+            <DialogDescription>
+              {selectedAssignment && (
+                <>
+                  Enter grades for &quot;{selectedAssignment.title}&quot; - Max
+                  Score: {selectedAssignment.max_score}
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6">
+            {loadingAssignmentStudents ? (
+              <div className="text-center py-8">
+                <div className="text-muted-foreground">Loading students...</div>
+              </div>
+            ) : assignmentStudents.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground">
+                  No students enrolled in this class
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="rounded-md border">
+                  <table className="w-full">
+                    <thead className="bg-muted">
+                      <tr>
+                        <th className="p-3 text-left font-medium">
+                          Student ID
+                        </th>
+                        <th className="p-3 text-left font-medium">Name</th>
+                        <th className="p-3 text-left font-medium">Email</th>
+                        <th className="p-3 text-right font-medium">
+                          Grade (out of {selectedAssignment?.max_score})
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {assignmentStudents.map((student, index) => (
+                        <tr
+                          key={student.id}
+                          className={
+                            index % 2 === 0 ? "bg-background" : "bg-muted/30"
+                          }
+                        >
+                          <td className="p-3">{student.student_id}</td>
+                          <td className="p-3">
+                            {student.first_name} {student.last_name}
+                          </td>
+                          <td className="p-3 text-sm text-muted-foreground">
+                            {student.email}
+                          </td>
+                          <td className="p-3">
+                            <Input
+                              type="number"
+                              min="0"
+                              max={selectedAssignment?.max_score || 100}
+                              step="0.5"
+                              placeholder="Enter grade"
+                              value={assignmentGrades.get(student.id) || ""}
+                              onChange={(e) => {
+                                const newGrades = new Map(assignmentGrades);
+                                if (e.target.value === "") {
+                                  newGrades.delete(student.id);
+                                } else {
+                                  newGrades.set(student.id, e.target.value);
+                                }
+                                setAssignmentGrades(newGrades);
+                              }}
+                              className="text-right"
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="flex items-center justify-between p-3 bg-muted rounded">
+                  <span className="text-sm font-medium">
+                    Grades entered: {assignmentGrades.size} /{" "}
+                    {assignmentStudents.length}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const newGrades = new Map();
+                      assignmentStudents.forEach((student) => {
+                        newGrades.set(
+                          student.id,
+                          selectedAssignment?.max_score.toString() || "100"
+                        );
+                      });
+                      setAssignmentGrades(newGrades);
+                    }}
+                  >
+                    Set All to Max Score
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
+            {success && (
+              <Alert className="bg-green-50 border-green-200">
+                <AlertDescription className="text-green-900">
+                  {success}
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowGradeAssignmentDialog(false);
+                setSelectedAssignment(null);
+                setAssignmentGrades(new Map());
+                setError("");
+                setSuccess("");
+              }}
+              disabled={submittingAssignmentGrades}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSubmitAssignmentGrades}
+              disabled={
+                submittingAssignmentGrades ||
+                assignmentGrades.size === 0 ||
+                !selectedAssignment
+              }
+            >
+              {submittingAssignmentGrades ? "Submitting..." : "Submit Grades"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Attendance Dialog */}
+      <Dialog
+        open={showViewAttendanceDialog}
+        onOpenChange={setShowViewAttendanceDialog}
+      >
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>View Attendance Records</DialogTitle>
+            <DialogDescription>
+              {selectedClassForViewAttendance
+                ? `${selectedClassForViewAttendance.subject_name} - ${selectedClassForViewAttendance.academic_year}`
+                : "Select a date to view attendance"}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* Date and Class Selection */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="view-attendance-date">Select Date</Label>
+                <Input
+                  id="view-attendance-date"
+                  type="date"
+                  value={attendanceViewDate}
+                  onChange={(e) => handleAttendanceDateChange(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="view-attendance-class">Select Class</Label>
+                <Select
+                  value={selectedClassForViewAttendance?.id || ""}
+                  onValueChange={(classId) => {
+                    const classItem = classes.find((c) => c.id === classId);
+                    if (classItem) {
+                      setSelectedClassForViewAttendance(classItem);
+                      loadAttendanceRecords(classId, attendanceViewDate);
+                    }
+                  }}
+                >
+                  <SelectTrigger id="view-attendance-class">
+                    <SelectValue placeholder="Choose a class" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {classes.map((classItem) => (
+                      <SelectItem key={classItem.id} value={classItem.id}>
+                        {classItem.subject_name} - {classItem.academic_year}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Attendance Records */}
+            {loadingAttendanceRecords ? (
+              <div className="text-center py-12 text-muted-foreground">
+                Loading attendance records...
+              </div>
+            ) : attendanceRecordsView.length === 0 ? (
+              <div className="text-center py-12">
+                <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <p className="text-muted-foreground">
+                  No attendance records found for this date
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold">
+                    Attendance for{" "}
+                    {new Date(attendanceViewDate).toLocaleDateString()}
+                  </h3>
+                  <div className="flex gap-2">
+                    <Badge variant="outline" className="bg-green-50">
+                      Present:{" "}
+                      {
+                        attendanceRecordsView.filter(
+                          (r) => r.status === "present"
+                        ).length
+                      }
+                    </Badge>
+                    <Badge variant="outline" className="bg-red-50">
+                      Absent:{" "}
+                      {
+                        attendanceRecordsView.filter(
+                          (r) => r.status === "absent"
+                        ).length
+                      }
+                    </Badge>
+                    <Badge variant="outline" className="bg-yellow-50">
+                      Late:{" "}
+                      {
+                        attendanceRecordsView.filter((r) => r.status === "late")
+                          .length
+                      }
+                    </Badge>
+                    <Badge variant="outline" className="bg-blue-50">
+                      Excused:{" "}
+                      {
+                        attendanceRecordsView.filter(
+                          (r) => r.status === "excused"
+                        ).length
+                      }
+                    </Badge>
+                  </div>
+                </div>
+
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="border-b bg-muted/50">
+                      <th className="p-3 text-left font-semibold">Student</th>
+                      <th className="p-3 text-center font-semibold">Status</th>
+                      <th className="p-3 text-left font-semibold">Notes</th>
+                      <th className="p-3 text-center font-semibold">
+                        Marked At
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {attendanceRecordsView.map((record) => (
+                      <tr
+                        key={record.id}
+                        className="border-b hover:bg-muted/30"
+                      >
+                        <td className="p-3">
+                          <div>
+                            <p className="font-semibold">
+                              {record.student_name || "Unknown Student"}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              ID: {record.student_code || record.student_id}
+                            </p>
+                          </div>
+                        </td>
+                        <td className="p-3 text-center">
+                          <Badge
+                            variant={
+                              record.status === "present"
+                                ? "default"
+                                : record.status === "absent"
+                                ? "destructive"
+                                : record.status === "late"
+                                ? "outline"
+                                : "secondary"
+                            }
+                            className={
+                              record.status === "present"
+                                ? "bg-green-600"
+                                : record.status === "late"
+                                ? "bg-yellow-600 text-white"
+                                : record.status === "excused"
+                                ? "bg-blue-600 text-white"
+                                : ""
+                            }
+                          >
+                            {record.status.toUpperCase()}
+                          </Badge>
+                        </td>
+                        <td className="p-3 text-sm text-muted-foreground">
+                          {record.notes || "-"}
+                        </td>
+                        <td className="p-3 text-center text-sm text-muted-foreground">
+                          {record.created_at
+                            ? new Date(record.created_at).toLocaleString()
+                            : "-"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowViewAttendanceDialog(false);
+                setSelectedClassForViewAttendance(null);
+                setAttendanceRecordsView([]);
               }}
             >
               Close

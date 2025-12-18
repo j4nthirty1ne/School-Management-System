@@ -70,9 +70,9 @@ export async function GET(
       );
     }
 
-    // Get students enrolled in this class through student_class_enrollments
+    // Get students enrolled in this class through class_students
     const { data: enrollments, error: enrollError } = await supabase
-      .from("student_class_enrollments")
+      .from("class_students")
       .select("student_id")
       .eq("class_id", id)
       .eq("status", "active");

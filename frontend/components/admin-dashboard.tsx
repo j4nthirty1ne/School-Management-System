@@ -107,6 +107,9 @@ export function AdminDashboard() {
   const [selectedUserType, setSelectedUserType] = useState<
     "student" | "teacher" | "admin" | null
   >(null);
+  const [selectedTeacherId, setSelectedTeacherId] = useState<string | null>(
+    null
+  );
   const router = useRouter();
 
   // Data states
@@ -272,14 +275,35 @@ export function AdminDashboard() {
 
   const handleCreateClass = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Validate teacher selection
+    if (!newClass.teacher_id) {
+      alert("Please select a teacher");
+      return;
+    }
+
     setClassLoading(true);
     try {
+      const payload = {
+        subject_name: newClass.subject_name,
+        academic_year: newClass.academic_year,
+        teacher_id: newClass.teacher_id,
+        room_number: newClass.room_number,
+        day_of_week: newClass.day_of_week,
+        start_time: newClass.start_time,
+        end_time: newClass.end_time,
+      };
+
+      console.log("Creating class with payload:", payload);
+
       const response = await fetch("/api/classes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(newClass),
       });
       const data = await response.json();
+
+      console.log("Response:", data);
 
       if (data.success) {
         alert("Class created successfully!");
@@ -299,6 +323,7 @@ export function AdminDashboard() {
         alert(data.error || "Failed to create group");
       }
     } catch (err: any) {
+      console.error("Error creating class:", err);
       alert(err.message || "An error occurred");
     } finally {
       setClassLoading(false);
@@ -537,15 +562,35 @@ export function AdminDashboard() {
         .includes(teacherSearchQuery.toLowerCase())
   );
 
-  // Filter classes based on search
-  const filteredClasses = classesData.filter(
-    (cls) =>
-      cls.class_name?.toLowerCase().includes(classSearchQuery.toLowerCase()) ||
+  // Filter classes based on search and selected teacher
+  const filteredClasses = classesData.filter((cls) => {
+    const matchesSearch =
+      cls.subject_name
+        ?.toLowerCase()
+        .includes(classSearchQuery.toLowerCase()) ||
       cls.teacher_name
         ?.toLowerCase()
         .includes(classSearchQuery.toLowerCase()) ||
-      cls.room_number?.toLowerCase().includes(classSearchQuery.toLowerCase())
-  );
+      cls.room_number?.toLowerCase().includes(classSearchQuery.toLowerCase());
+
+    const matchesTeacher =
+      !selectedTeacherId || cls.teacher_id === selectedTeacherId;
+
+    if (selectedTeacherId) {
+      console.log("Filtering class:", {
+        className: cls.subject_name,
+        classTeacherId: cls.teacher_id,
+        selectedTeacherId,
+        matchesTeacher,
+      });
+    }
+
+    return matchesSearch && matchesTeacher;
+  });
+
+  console.log("Total classes:", classesData.length);
+  console.log("Filtered classes:", filteredClasses.length);
+  console.log("Selected teacher ID:", selectedTeacherId);
 
   const stats = [
     {
@@ -666,7 +711,34 @@ export function AdminDashboard() {
       {error && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription>
+            {error}
+            {error.includes("Teacher record not found") && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="ml-4"
+                onClick={async () => {
+                  try {
+                    const res = await fetch("/api/setup-admin", {
+                      method: "POST",
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                      alert("Admin profile created! Please refresh the page.");
+                      window.location.reload();
+                    } else {
+                      alert("Error: " + data.error);
+                    }
+                  } catch (err: any) {
+                    alert("Error setting up admin");
+                  }
+                }}
+              >
+                Fix Admin Profile
+              </Button>
+            )}
+          </AlertDescription>
         </Alert>
       )}
 
@@ -973,6 +1045,7 @@ export function AdminDashboard() {
                                     <Edit className="h-4 w-4 mr-2" />
                                     Edit
                                   </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
                                   <DropdownMenuItem
                                     className="text-red-600"
                                     onClick={() =>
@@ -1467,17 +1540,6 @@ export function AdminDashboard() {
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium">Subject Code</label>
-                <Input
-                  placeholder="e.g., MATH101"
-                  value={newClass.subject_code}
-                  onChange={(e) =>
-                    setNewClass({ ...newClass, subject_code: e.target.value })
-                  }
-                />
-              </div>
-
-              <div className="space-y-2">
                 <label className="text-sm font-medium">Academic Year *</label>
                 <Input
                   placeholder="e.g., 2024-2025"
@@ -1489,14 +1551,15 @@ export function AdminDashboard() {
                 />
               </div>
 
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Assign Teacher</label>
+              <div className="space-y-2 col-span-2">
+                <label className="text-sm font-medium">Assign Teacher *</label>
                 <select
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   value={newClass.teacher_id}
                   onChange={(e) =>
                     setNewClass({ ...newClass, teacher_id: e.target.value })
                   }
+                  required
                 >
                   <option value="">Select a teacher</option>
                   {teachersData.map((teacher) => (

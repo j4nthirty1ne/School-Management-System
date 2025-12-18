@@ -1,28 +1,32 @@
-import { createAdminClient } from '@/lib/supabase/admin'
-import { NextResponse } from 'next/server'
+import { createAdminClient } from "@/lib/supabase/admin";
+import { NextResponse } from "next/server";
 
 export async function GET() {
   try {
-    let supabase
-    
+    let supabase;
+
     try {
-      supabase = createAdminClient()
+      supabase = createAdminClient();
     } catch (err: any) {
       // Development fallback
-      if (process.env.NODE_ENV === 'development') {
+      if (process.env.NODE_ENV === "development") {
         return NextResponse.json({
           success: true,
           students: [],
           count: 0,
-        })
+        });
       }
-      return NextResponse.json({ success: false, error: err.message }, { status: 500 })
+      return NextResponse.json(
+        { success: false, error: err.message },
+        { status: 500 }
+      );
     }
 
     // Fetch students from Supabase with user profile join
     const { data: students, error } = await supabase
-      .from('students')
-      .select(`
+      .from("students")
+      .select(
+        `
         id,
         student_code,
         enrollment_status,
@@ -41,15 +45,16 @@ export async function GET() {
           phone,
           id
         )
-      `)
-      .order('created_at', { ascending: false })
+      `
+      )
+      .order("created_at", { ascending: false });
 
     if (error) {
-      console.error('Error fetching students:', error)
+      console.error("Error fetching students:", error);
       return NextResponse.json(
         { success: false, error: error.message },
         { status: 500 }
-      )
+      );
     }
 
     // Transform the data to flatten user_profiles
@@ -70,86 +75,143 @@ export async function GET() {
       medical_notes: student.medical_notes,
       class_id: student.class_id,
       created_at: student.created_at,
-    }))
+    }));
 
     return NextResponse.json({
       success: true,
       students: transformedStudents || [],
       count: transformedStudents?.length || 0,
-    })
+    });
   } catch (error: any) {
-    console.error('Unexpected error:', error)
+    console.error("Unexpected error:", error);
     return NextResponse.json(
-      { success: false, error: error.message || 'Internal server error' },
+      { success: false, error: error.message || "Internal server error" },
       { status: 500 }
-    )
+    );
   }
 }
 
 export async function POST(request: Request) {
   try {
-    let supabase
-    
+    let supabase;
+
     try {
-      supabase = createAdminClient()
+      supabase = createAdminClient();
     } catch (err: any) {
       // Development fallback
-      if (process.env.NODE_ENV === 'development') {
-        const body = await request.json()
+      if (process.env.NODE_ENV === "development") {
+        const body = await request.json();
         return NextResponse.json({
           success: true,
           student: {
-            id: 'dev-student-' + Date.now(),
-            student_code: body.student_code || 'DEV-' + Date.now(),
+            id: "dev-student-" + Date.now(),
+            student_code: body.student_code || "DEV-" + Date.now(),
             ...body,
             created_at: new Date().toISOString(),
           },
-        })
+        });
       }
-      return NextResponse.json({ success: false, error: err.message }, { status: 500 })
+      return NextResponse.json(
+        { success: false, error: err.message },
+        { status: 500 }
+      );
     }
-    
-    const body = await request.json()
+
+    const body = await request.json();
 
     // First create the user profile (this should be done through proper auth flow)
     // For now, assuming user_id is provided or needs to be created first
-    
+
     // Insert student record
     const { data: student, error } = await supabase
-      .from('students')
+      .from("students")
       .insert({
         user_id: body.user_id, // Must reference an existing user_profile
         student_code: body.student_code,
         date_of_birth: body.date_of_birth,
         gender: body.gender,
         address: body.address,
-        enrollment_status: body.enrollment_status || 'pending',
-        enrollment_date: body.enrollment_date || new Date().toISOString().split('T')[0],
+        enrollment_status: body.enrollment_status || "pending",
+        enrollment_date:
+          body.enrollment_date || new Date().toISOString().split("T")[0],
         emergency_contact_name: body.emergency_contact_name,
         emergency_contact_phone: body.emergency_contact_phone,
         medical_notes: body.medical_notes,
         class_id: body.class_id,
       })
       .select()
-      .single()
+      .single();
 
     if (error) {
-      console.error('Error creating student:', error)
+      console.error("Error creating student:", error);
       return NextResponse.json(
         { success: false, error: error.message },
         { status: 500 }
-      )
+      );
     }
 
     return NextResponse.json({
       success: true,
       student,
-    })
+    });
   } catch (error: any) {
-    console.error('Unexpected error:', error)
+    console.error("Unexpected error:", error);
     return NextResponse.json(
-      { success: false, error: error.message || 'Internal server error' },
+      { success: false, error: error.message || "Internal server error" },
       { status: 500 }
-    )
+    );
+  }
+}
+
+export async function PATCH(request: Request) {
+  try {
+    let supabase;
+
+    try {
+      supabase = createAdminClient();
+    } catch (err: any) {
+      return NextResponse.json(
+        { success: false, error: err.message },
+        { status: 500 }
+      );
+    }
+
+    const body = await request.json();
+
+    if (!body.id) {
+      return NextResponse.json(
+        { success: false, error: "Student ID is required" },
+        { status: 400 }
+      );
+    }
+
+    // Update student record
+    const { data: student, error } = await supabase
+      .from("students")
+      .update({
+        class_id: body.class_id,
+      })
+      .eq("id", body.id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Error updating student:", error);
+      return NextResponse.json(
+        { success: false, error: error.message },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      student,
+    });
+  } catch (error: any) {
+    console.error("Unexpected error:", error);
+    return NextResponse.json(
+      { success: false, error: error.message || "Internal server error" },
+      { status: 500 }
+    );
   }
 }
