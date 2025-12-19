@@ -1,5 +1,5 @@
-import { createAdminClient } from '@/lib/supabase/admin'
-import { NextRequest, NextResponse } from 'next/server'
+import { createAdminClient } from "@/lib/supabase/admin";
+import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(
   request: NextRequest,
@@ -59,9 +59,9 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await params
-    let supabase
-    
+    const { id } = await params;
+    let supabase;
+
     try {
       supabase = createAdminClient();
     } catch (err: any) {
@@ -76,13 +76,16 @@ export async function PUT(
           },
         });
       }
-      return NextResponse.json({ success: false, error: err.message }, { status: 500 })
+      return NextResponse.json(
+        { success: false, error: err.message },
+        { status: 500 }
+      );
     }
-    
-    const body = await request.json()
+
+    const body = await request.json();
 
     const { data: classData, error } = await supabase
-      .from('classes')
+      .from("classes")
       .update({
         subject_name: body.subject_name,
         subject_id: body.subject_id || null,
@@ -92,7 +95,7 @@ export async function PUT(
         start_time: body.start_time || null,
         end_time: body.end_time || null,
       })
-      .eq('id', id)
+      .eq("id", id)
       .select()
       .single();
 
@@ -120,9 +123,9 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await params
-    let supabase
-    
+    const { id } = await params;
+    let supabase;
+
     try {
       supabase = createAdminClient();
     } catch (err: any) {
@@ -138,10 +141,7 @@ export async function DELETE(
       );
     }
 
-    const { error } = await supabase
-      .from('classes')
-      .delete()
-      .eq('id', id)
+    const { error } = await supabase.from("classes").delete().eq("id", id);
 
     if (error) {
       return NextResponse.json(

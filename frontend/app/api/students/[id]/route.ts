@@ -8,7 +8,7 @@ export async function GET(
 ) {
   try {
     const supabase = createAdminClient();
-    const { id } = params;
+    const { id } = await params;
 
     // Select student and join user_profiles to include name/phone
     const { data: studentRaw, error } = await supabase
@@ -95,23 +95,128 @@ export async function PUT(
 ) {
   try {
     const supabase = createAdminClient();
-    const { id } = params;
+    const { id } = await params;
     const body = await request.json();
 
-    const { data: student, error } = await supabase
+    // Get the student to find user_id
+    const { data: studentData, error: fetchError } = await supabase
       .from("students")
-      .update(body)
+      .select("user_id, class_id")
       .eq("id", id)
-      .select()
       .single();
 
-    if (error) {
-      console.error("Error updating student:", error);
+    if (fetchError || !studentData) {
       return NextResponse.json(
-        { success: false, error: error.message },
+        { success: false, error: "Student not found" },
+        { status: 404 }
+      );
+    }
+
+    // Separate updates for students and user_profiles tables
+    const userProfileFields = ["first_name", "last_name", "phone", "email"];
+    const userProfileUpdates: any = {};
+    const studentUpdates: any = {};
+
+    Object.keys(body).forEach((key) => {
+      if (userProfileFields.includes(key)) {
+        userProfileUpdates[key] = body[key];
+      } else {
+        studentUpdates[key] = body[key];
+      }
+    });
+
+    // Update user_profiles if needed
+    if (Object.keys(userProfileUpdates).length > 0) {
+      const { error: profileError } = await supabase
+        .from("user_profiles")
+        .update(userProfileUpdates)
+        .eq("id", studentData.user_id);
+
+      if (profileError) {
+        console.error("Error updating user profile:", profileError);
+        return NextResponse.json(
+          { success: false, error: profileError.message },
+          { status: 500 }
+        );
+      }
+    }
+
+    // Update students table if needed
+    if (Object.keys(studentUpdates).length > 0) {
+      const { error: studentError } = await supabase
+        .from("students")
+        .update(studentUpdates)
+        .eq("id", id);
+
+      if (studentError) {
+        console.error("Error updating student:", studentError);
+        return NextResponse.json(
+          { success: false, error: studentError.message },
+          { status: 500 }
+        );
+      }
+    }
+
+    // Fetch updated student
+    const { data: updatedStudent, error: refetchError } = await supabase
+      .from("students")
+      .select(
+        `
+        id,
+        student_code,
+        enrollment_status,
+        date_of_birth,
+        gender,
+        address,
+        enrollment_date,
+        emergency_contact_name,
+        emergency_contact_phone,
+        medical_notes,
+        class_id,
+        created_at,
+        user_profiles!inner (
+          id,
+          first_name,
+          last_name,
+          phone,
+          email
+        )
+      `
+      )
+      .eq("id", id)
+      .single();
+
+    if (refetchError || !updatedStudent) {
+      return NextResponse.json(
+        { success: false, error: "Failed to fetch updated student" },
         { status: 500 }
       );
     }
+
+    // Flatten the response
+    const profile = Array.isArray(updatedStudent.user_profiles)
+      ? updatedStudent.user_profiles[0]
+      : updatedStudent.user_profiles;
+
+    const student = {
+      id: updatedStudent.id,
+      student_code: updatedStudent.student_code,
+      first_name: profile?.first_name,
+      last_name: profile?.last_name,
+      phone: profile?.phone,
+      email: profile?.email,
+      user_id: profile?.id,
+      enrollment_status: updatedStudent.enrollment_status,
+      date_of_birth: updatedStudent.date_of_birth,
+      gender: updatedStudent.gender,
+      address: updatedStudent.address,
+      enrollment_date: updatedStudent.enrollment_date,
+      emergency_contact_name: updatedStudent.emergency_contact_name,
+      emergency_contact_phone: updatedStudent.emergency_contact_phone,
+      medical_notes: updatedStudent.medical_notes,
+      class_id: updatedStudent.class_id,
+      created_at: updatedStudent.created_at,
+    };
 
     return NextResponse.json({
       success: true,
@@ -132,7 +237,7 @@ export async function DELETE(
 ) {
   try {
     const supabase = createAdminClient();
-    const { id } = params;
+    const { id } = await params;
 
     // First, get the student to find the user_id
     const { data: student, error: fetchError } = await supabase

@@ -37,6 +37,13 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { AddUserDialog } from "@/components/add-user-dialog";
 import {
   Dialog,
@@ -60,6 +67,7 @@ interface Student {
   date_of_birth: string;
   phone: string;
   class_id?: string;
+  class_name?: string;
   gender?: string;
   address?: string;
 }
@@ -79,7 +87,8 @@ interface Teacher {
 
 interface Class {
   id: string;
-  subject_name: string;
+  class_name?: string;
+  subject_name?: string;
   subject_code?: string;
   subject_id?: string;
   grade_level?: string;
@@ -87,11 +96,24 @@ interface Class {
   teacher_id?: string;
   teacher_name?: string;
   room_number?: string;
+  capacity?: number;
+  student_count?: number;
   schedule?: string;
   academic_year?: string;
   day_of_week?: string;
   start_time?: string;
   end_time?: string;
+  created_at?: string;
+}
+
+interface ClassRecord {
+  id: string;
+  class_name: string;
+  grade_level?: string;
+  section: string;
+  room_number?: string;
+  capacity?: number;
+  student_count?: number;
   created_at?: string;
 }
 
@@ -116,6 +138,7 @@ export function AdminDashboard() {
   const [studentsData, setStudentsData] = useState<Student[]>([]);
   const [teachersData, setTeachersData] = useState<Teacher[]>([]);
   const [classesData, setClassesData] = useState<Class[]>([]);
+  const [allClassesData, setAllClassesData] = useState<ClassRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -227,6 +250,13 @@ export function AdminDashboard() {
       console.log("✅ Classes API response:", data);
       console.log("📊 Classes data:", data.classes);
 
+      // Log each class with its teacher info
+      data.classes?.forEach((cls: any) => {
+        console.log(
+          `📋 Class: ${cls.subject_name}, Teacher ID: ${cls.teacher_id}, Teacher Name: ${cls.teacher_name}`
+        );
+      });
+
       if (data.success) {
         setClassesData(data.classes || []);
         setStatsData((prev) => ({
@@ -241,11 +271,32 @@ export function AdminDashboard() {
     }
   };
 
+  const fetchAllClasses = async () => {
+    try {
+      const response = await fetch("/api/classes-list", {
+        cache: "no-store",
+        headers: {
+          "Cache-Control": "no-cache",
+        },
+      });
+      const data = await response.json();
+
+      if (data.success) {
+        setAllClassesData(data.classes || []);
+      } else {
+        console.error("❌ Failed to fetch all classes:", data.error);
+      }
+    } catch (err) {
+      console.error("❌ Error fetching all classes:", err);
+    }
+  };
+
   // Initial data fetch
   useEffect(() => {
     fetchStudents();
     fetchTeachers();
     fetchClasses();
+    fetchAllClasses();
   }, []);
 
   const handleOpenAddUser = (userType: "student" | "teacher" | "admin") => {
@@ -286,7 +337,6 @@ export function AdminDashboard() {
     try {
       const payload = {
         subject_name: newClass.subject_name,
-        academic_year: newClass.academic_year,
         teacher_id: newClass.teacher_id,
         room_number: newClass.room_number,
         day_of_week: newClass.day_of_week,
@@ -299,7 +349,7 @@ export function AdminDashboard() {
       const response = await fetch("/api/classes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newClass),
+        body: JSON.stringify(payload),
       });
       const data = await response.json();
 
@@ -467,6 +517,16 @@ export function AdminDashboard() {
   const [editStudent, setEditStudent] = useState<Student | null>(null);
   const [editLoading, setEditLoading] = useState(false);
 
+  // Create class handlers
+  const [showCreateClass, setShowCreateClass] = useState(false);
+  const [createClassForm, setCreateClassForm] = useState({
+    class_name: "",
+    section: "",
+    grade_level: "",
+    academic_year: new Date().getFullYear().toString(),
+  });
+  const [createClassLoading, setCreateClassLoading] = useState(false);
+
   const handleViewStudent = async (id: string) => {
     try {
       setLoading(true);
@@ -529,6 +589,44 @@ export function AdminDashboard() {
       alert(err.message || "An error occurred");
     } finally {
       setEditLoading(false);
+    }
+  };
+
+  const handleCreateNewClass = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCreateClassLoading(true);
+    try {
+      const payload = {
+        class_name: createClassForm.class_name,
+        section: createClassForm.section,
+        grade_level: createClassForm.grade_level,
+        academic_year: createClassForm.academic_year,
+      };
+
+      const res = await fetch("/api/classes-list", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success)
+        throw new Error(data.error || "Failed to create class");
+
+      // Refresh list and close dialog
+      fetchAllClasses();
+      setShowCreateClass(false);
+      setCreateClassForm({
+        class_name: "",
+        section: "",
+        grade_level: "",
+        academic_year: new Date().getFullYear().toString(),
+      });
+      alert("Class created successfully");
+    } catch (err: any) {
+      alert(err.message || "An error occurred");
+    } finally {
+      setCreateClassLoading(false);
     }
   };
 
@@ -774,6 +872,7 @@ export function AdminDashboard() {
         <TabsList>
           <TabsTrigger value="students">Students</TabsTrigger>
           <TabsTrigger value="teachers">Teachers</TabsTrigger>
+          <TabsTrigger value="classes-new">Classes</TabsTrigger>
           <TabsTrigger value="classes">Groups</TabsTrigger>
           <TabsTrigger value="timetable">Timetable</TabsTrigger>
         </TabsList>
@@ -864,7 +963,7 @@ export function AdminDashboard() {
                               {student.first_name} {student.last_name}
                             </td>
                             <td className="p-3 text-sm">
-                              {student.class_id || "Not assigned"}
+                              {student.class_name || "Not assigned"}
                             </td>
                             <td className="p-3 text-sm">
                               <Badge
@@ -1215,6 +1314,82 @@ export function AdminDashboard() {
           </Card>
         </TabsContent>
 
+        <TabsContent value="classes-new" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Class Management</CardTitle>
+                  <CardDescription>
+                    Create and manage classes like Math-M1, Khmer-A1
+                  </CardDescription>
+                </div>
+                <Button
+                  className="gap-2"
+                  onClick={() => setShowCreateClass(true)}
+                >
+                  <Plus size={16} />
+                  Create Class
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="rounded-lg border">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b bg-muted">
+                      <th className="px-6 py-3 text-left text-sm font-semibold">
+                        Class Name
+                      </th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold">
+                        Section
+                      </th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold">
+                        Grade Level
+                      </th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold">
+                        Students
+                      </th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold">
+                        Capacity
+                      </th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold">
+                        Room
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {allClassesData.map((cls) => (
+                      <tr
+                        key={cls.id}
+                        className="border-b hover:bg-muted/50 transition"
+                      >
+                        <td className="px-6 py-4">
+                          <span className="font-medium">{cls.class_name}</span>
+                        </td>
+                        <td className="px-6 py-4">{cls.section}</td>
+                        <td className="px-6 py-4">{cls.grade_level || "-"}</td>
+                        <td className="px-6 py-4">
+                          <Badge variant="outline">
+                            {cls.student_count || 0} students
+                          </Badge>
+                        </td>
+                        <td className="px-6 py-4">{cls.capacity || "-"}</td>
+                        <td className="px-6 py-4">{cls.room_number || "-"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {allClassesData.length === 0 && (
+                  <div className="px-6 py-8 text-center text-muted-foreground">
+                    No classes created yet. Create one to get started!
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         <TabsContent value="timetable" className="space-y-4">
           <TimetableCalendarView />
         </TabsContent>
@@ -1252,7 +1427,8 @@ export function AdminDashboard() {
                 <strong>Phone:</strong> {viewStudent.phone || "N/A"}
               </p>
               <p>
-                <strong>Class:</strong> {viewStudent.class_id || "Not assigned"}
+                <strong>Class:</strong>{" "}
+                {viewStudent.class_name || "Not assigned"}
               </p>
               <p>
                 <strong>Status:</strong> {viewStudent.enrollment_status}
@@ -1281,12 +1457,28 @@ export function AdminDashboard() {
             <form onSubmit={handleSubmitEdit} className="space-y-3">
               <div>
                 <label className="text-sm">First Name</label>
-                <Input value={editStudent.first_name || ""} disabled />
+                <Input
+                  value={editStudent.first_name || ""}
+                  onChange={(e) =>
+                    setEditStudent({
+                      ...editStudent,
+                      first_name: e.target.value,
+                    })
+                  }
+                />
               </div>
 
               <div>
                 <label className="text-sm">Last Name</label>
-                <Input value={editStudent.last_name || ""} disabled />
+                <Input
+                  value={editStudent.last_name || ""}
+                  onChange={(e) =>
+                    setEditStudent({
+                      ...editStudent,
+                      last_name: e.target.value,
+                    })
+                  }
+                />
               </div>
 
               <div>
@@ -1324,13 +1516,34 @@ export function AdminDashboard() {
               </div>
 
               <div>
-                <label className="text-sm">Class ID</label>
-                <Input
+                <label className="text-sm">Class Name</label>
+                <Select
                   value={editStudent.class_id || ""}
-                  onChange={(e) =>
-                    setEditStudent({ ...editStudent, class_id: e.target.value })
+                  onValueChange={(value) =>
+                    setEditStudent({
+                      ...editStudent,
+                      class_id: value,
+                      class_name:
+                        classesData.find((c) => c.id === value)?.class_name ||
+                        "",
+                    })
                   }
-                />
+                >
+                  <SelectTrigger>
+                    <SelectValue
+                      placeholder={editStudent.class_name || "Not assigned"}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {classesData.map((cls) => (
+                      <SelectItem key={cls.id} value={cls.id}>
+                        {cls.section
+                          ? `${cls.class_name}-${cls.section}`
+                          : cls.class_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div>
@@ -1370,6 +1583,91 @@ export function AdminDashboard() {
               </DialogFooter>
             </form>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Class Modal */}
+      <Dialog open={showCreateClass} onOpenChange={setShowCreateClass}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create New Class</DialogTitle>
+          </DialogHeader>
+
+          <form onSubmit={handleCreateNewClass} className="space-y-4">
+            <div>
+              <label className="text-sm">Class Name *</label>
+              <Input
+                value={createClassForm.class_name}
+                onChange={(e) =>
+                  setCreateClassForm({
+                    ...createClassForm,
+                    class_name: e.target.value,
+                  })
+                }
+                placeholder="e.g., Mathematics, Chemistry"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="text-sm">Section *</label>
+              <Input
+                value={createClassForm.section}
+                onChange={(e) =>
+                  setCreateClassForm({
+                    ...createClassForm,
+                    section: e.target.value,
+                  })
+                }
+                placeholder="e.g., M1, A1, B2"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="text-sm">Grade Level *</label>
+              <Input
+                type="number"
+                value={createClassForm.grade_level}
+                onChange={(e) =>
+                  setCreateClassForm({
+                    ...createClassForm,
+                    grade_level: e.target.value,
+                  })
+                }
+                placeholder="e.g., 10, 11, 12"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="text-sm">Academic Year *</label>
+              <Input
+                value={createClassForm.academic_year}
+                onChange={(e) =>
+                  setCreateClassForm({
+                    ...createClassForm,
+                    academic_year: e.target.value,
+                  })
+                }
+                placeholder="e.g., 2024-2025"
+                required
+              />
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowCreateClass(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={createClassLoading}>
+                {createClassLoading ? "Creating..." : "Create"}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
 
@@ -1527,25 +1825,13 @@ export function AdminDashboard() {
 
           <form onSubmit={handleCreateClass} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Subject Name *</label>
+              <div className="space-y-2 col-span-2">
+                <label className="text-sm font-medium">Group Name *</label>
                 <Input
                   placeholder="e.g., Mathematics"
                   value={newClass.subject_name}
                   onChange={(e) =>
                     setNewClass({ ...newClass, subject_name: e.target.value })
-                  }
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Academic Year *</label>
-                <Input
-                  placeholder="e.g., 2024-2025"
-                  value={newClass.academic_year}
-                  onChange={(e) =>
-                    setNewClass({ ...newClass, academic_year: e.target.value })
                   }
                   required
                 />

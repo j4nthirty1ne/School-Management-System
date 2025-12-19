@@ -36,17 +36,39 @@ export async function GET() {
       .eq("id", currentUser.id)
       .single();
 
-    let classes;
+    let subjectClassesData: any[] = [];
     let error;
 
-    // If admin, get all classes; if teacher, get only their classes
+    // If admin, get all subject_classes; if teacher, get only their classes
     if (userProfile?.role === "admin") {
-      // Admin sees all classes
+      // Admin sees all classes with teacher and subject info
       const result = await supabase
-        .from("classes")
-        .select("*")
+        .from("subject_classes")
+        .select(
+          `
+          id,
+          subject_id,
+          teacher_id,
+          class_id,
+          day_of_week,
+          start_time,
+          end_time,
+          room_number,
+          class_type,
+          section,
+          academic_year,
+          semester,
+          join_code,
+          is_active,
+          created_at,
+          updated_at,
+          subjects(id, subject_name, subject_code, description),
+          teachers(id, user_id, teacher_code, status, subject_specialization, user_profiles(first_name, last_name)),
+          classes(id, class_name, section, grade_level, room_number, capacity)
+        `
+        )
         .order("created_at", { ascending: false });
-      classes = result.data;
+      subjectClassesData = result.data || [];
       error = result.error;
     } else {
       // Get teacher record for current user
@@ -66,17 +88,38 @@ export async function GET() {
 
       // Get only classes belonging to this teacher
       const result = await supabase
-        .from("classes")
-        .select("*")
+        .from("subject_classes")
+        .select(
+          `
+          id,
+          subject_id,
+          teacher_id,
+          class_id,
+          day_of_week,
+          start_time,
+          end_time,
+          room_number,
+          class_type,
+          section,
+          academic_year,
+          semester,
+          join_code,
+          is_active,
+          created_at,
+          updated_at,
+          subjects(id, subject_name, subject_code, description),
+          teachers(id, user_id, teacher_code, status, subject_specialization, user_profiles(first_name, last_name)),
+          classes(id, class_name, section, grade_level, room_number, capacity)
+        `
+        )
         .eq("teacher_id", teacher.id)
         .order("created_at", { ascending: false });
-      classes = result.data;
+      subjectClassesData = result.data || [];
       error = result.error;
     }
 
     if (error) {
-      console.error("Error fetching classes:", error);
-      // Return empty array instead of error
+      console.error("Error fetching subject_classes:", error);
       return NextResponse.json({
         success: true,
         classes: [],
@@ -84,30 +127,50 @@ export async function GET() {
       });
     }
 
-    // If we have classes and teacher_id, try to get teacher info
-    const transformedClasses = await Promise.all(
-      (classes || []).map(async (cls) => {
-        if (cls.teacher_id) {
-          try {
-            const { data: teacher } = await supabase
-              .from("teachers")
-              .select("id, first_name, last_name, teacher_code")
-              .eq("id", cls.teacher_id)
-              .single();
+    // Transform the data to match the expected format
+    const transformedClasses = (subjectClassesData || []).map((sc: any) => {
+      const teachers = sc.teachers;
+      const userProfiles = teachers?.user_profiles;
+      const subject = sc.subjects;
+      const classInfo = sc.classes;
 
-            return {
-              ...cls,
-              teacher_name: teacher
-                ? `${teacher.first_name} ${teacher.last_name}`
-                : null,
-            };
-          } catch {
-            return { ...cls, teacher_name: null };
-          }
-        }
-        return { ...cls, teacher_name: null };
-      })
-    );
+      const teacherName =
+        userProfiles && userProfiles.first_name
+          ? `${userProfiles.first_name} ${userProfiles.last_name || ""}`.trim()
+          : null;
+
+      const subjectName = subject?.subject_name || "Unknown Subject";
+      const className = classInfo?.class_name || "Unknown Class";
+
+      console.log(
+        `📋 Processing class: ${subjectName} - ${className} ${
+          sc.section
+        }, teacher: ${teacherName || "Not assigned"}`
+      );
+
+      return {
+        id: sc.id,
+        subject_id: sc.subject_id,
+        teacher_id: sc.teacher_id,
+        class_id: sc.class_id,
+        subject_name: subjectName,
+        subject_code: subject?.subject_code || "",
+        class_name: className,
+        section: sc.section,
+        academic_year: sc.academic_year,
+        semester: sc.semester,
+        room_number: sc.room_number,
+        day_of_week: sc.day_of_week,
+        start_time: sc.start_time,
+        end_time: sc.end_time,
+        class_type: sc.class_type,
+        join_code: sc.join_code,
+        is_active: sc.is_active,
+        teacher_name: teacherName || "Not assigned",
+        created_at: sc.created_at,
+        updated_at: sc.updated_at,
+      };
+    });
 
     return NextResponse.json({
       success: true,
@@ -116,7 +179,6 @@ export async function GET() {
     });
   } catch (error: any) {
     console.error("Unexpected error:", error);
-    // Return empty array for any unexpected errors
     return NextResponse.json({
       success: true,
       classes: [],
@@ -210,8 +272,8 @@ export async function POST(request: Request) {
 
     console.log("Using teacher_id:", teacherId);
 
-    // Generate a unique 6-character subject code
-    const generateSubjectCode = () => {
+    // Generate a unique 6-character join code
+    const generateJoinCode = () => {
       const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
       let code = "";
       for (let i = 0; i < 6; i++) {
@@ -220,7 +282,18 @@ export async function POST(request: Request) {
       return code;
     };
 
-    const subjectCode = generateSubjectCode();
+    const joinCode = generateJoinCode();
+
+    console.log("Creating subject_class with:", {
+      subject_id: body.subject_id,
+      teacher_id: teacherId,
+      class_id: body.class_id || null,
+      section: body.section,
+      room_number: body.room_number,
+      day_of_week: body.day_of_week,
+      start_time: body.start_time,
+      end_time: body.end_time,
+    });
 
     // Check for room conflict (same room, same day, overlapping time)
     if (
@@ -230,8 +303,10 @@ export async function POST(request: Request) {
       body.end_time
     ) {
       const { data: existingClasses } = await supabase
-        .from("classes")
-        .select("id, subject_name, start_time, end_time")
+        .from("subject_classes")
+        .select(
+          "id, subject_id, day_of_week, start_time, end_time, room_number, subjects(subject_name)"
+        )
         .eq("room_number", body.room_number)
         .eq("day_of_week", body.day_of_week);
 
@@ -249,10 +324,12 @@ export async function POST(request: Request) {
             (newEnd > existingStart && newEnd <= existingEnd) ||
             (newStart <= existingStart && newEnd >= existingEnd)
           ) {
+            const subjectName =
+              (existing.subjects as any)?.subject_name || "Unknown";
             return NextResponse.json(
               {
                 success: false,
-                error: `Room ${body.room_number} is already booked on ${body.day_of_week} from ${existingStart} to ${existingEnd} for ${existing.subject_name}`,
+                error: `Room ${body.room_number} is already booked on ${body.day_of_week} from ${existingStart} to ${existingEnd} for ${subjectName}`,
               },
               { status: 409 }
             );
@@ -261,33 +338,40 @@ export async function POST(request: Request) {
       }
     }
 
-    const { data: classData, error } = await supabase
-      .from("classes")
+    const { data: subjectClassData, error } = await supabase
+      .from("subject_classes")
       .insert({
-        subject_name: body.subject_name,
-        subject_code: subjectCode,
-        subject_id: body.subject_id || null,
-        academic_year: body.academic_year,
+        subject_id: body.subject_id,
         teacher_id: teacherId,
+        class_id: body.class_id || null,
+        section: body.section || "",
         room_number: body.room_number || null,
         day_of_week: body.day_of_week || null,
         start_time: body.start_time || null,
         end_time: body.end_time || null,
+        class_type: body.class_type || "lecture",
+        academic_year:
+          body.academic_year || new Date().getFullYear().toString(),
+        semester: body.semester || null,
+        join_code: joinCode,
+        is_active: body.is_active !== false,
       })
       .select()
       .single();
 
     if (error) {
-      console.error("Error creating class:", error);
+      console.error("Error creating subject_class:", error);
       return NextResponse.json(
         { success: false, error: error.message },
         { status: 500 }
       );
     }
 
+    console.log("✅ Subject class created successfully:", subjectClassData);
+
     return NextResponse.json({
       success: true,
-      class: classData,
+      class: subjectClassData,
     });
   } catch (error: any) {
     console.error("Unexpected error:", error);
@@ -328,7 +412,7 @@ export async function PATCH(request: Request) {
 
     if (!id) {
       return NextResponse.json(
-        { success: false, error: "Class ID is required" },
+        { success: false, error: "Subject class ID is required" },
         { status: 400 }
       );
     }
@@ -355,9 +439,9 @@ export async function PATCH(request: Request) {
         );
       }
 
-      // Verify the class belongs to this teacher
+      // Verify the subject_class belongs to this teacher
       const { data: existingClass } = await supabase
-        .from("classes")
+        .from("subject_classes")
         .select("teacher_id")
         .eq("id", id)
         .single();
@@ -378,8 +462,10 @@ export async function PATCH(request: Request) {
       updateData.end_time
     ) {
       const { data: existingClasses } = await supabase
-        .from("classes")
-        .select("id, subject_name, start_time, end_time")
+        .from("subject_classes")
+        .select(
+          "id, subject_id, day_of_week, start_time, end_time, room_number, subjects(subject_name)"
+        )
         .eq("room_number", updateData.room_number)
         .eq("day_of_week", updateData.day_of_week)
         .neq("id", id); // Exclude the class being updated
@@ -398,10 +484,12 @@ export async function PATCH(request: Request) {
             (newEnd > existingStart && newEnd <= existingEnd) ||
             (newStart <= existingStart && newEnd >= existingEnd)
           ) {
+            const subjectName =
+              (existing.subjects as any)?.subject_name || "Unknown";
             return NextResponse.json(
               {
                 success: false,
-                error: `Room ${updateData.room_number} is already booked on ${updateData.day_of_week} from ${existingStart} to ${existingEnd} for ${existing.subject_name}`,
+                error: `Room ${updateData.room_number} is already booked on ${updateData.day_of_week} from ${existingStart} to ${existingEnd} for ${subjectName}`,
               },
               { status: 409 }
             );
@@ -410,23 +498,40 @@ export async function PATCH(request: Request) {
       }
     }
 
-    const { data: classData, error } = await supabase
-      .from("classes")
-      .update({
-        subject_name: updateData.subject_name,
-        subject_id: updateData.subject_id || null,
-        academic_year: updateData.academic_year,
-        room_number: updateData.room_number || null,
-        day_of_week: updateData.day_of_week || null,
-        start_time: updateData.start_time || null,
-        end_time: updateData.end_time || null,
-      })
+    // Build update object only with provided fields
+    const updateFields: Record<string, any> = {};
+    if (updateData.subject_id !== undefined)
+      updateFields.subject_id = updateData.subject_id;
+    if (updateData.section !== undefined)
+      updateFields.section = updateData.section;
+    if (updateData.room_number !== undefined)
+      updateFields.room_number = updateData.room_number || null;
+    if (updateData.day_of_week !== undefined)
+      updateFields.day_of_week = updateData.day_of_week || null;
+    if (updateData.start_time !== undefined)
+      updateFields.start_time = updateData.start_time || null;
+    if (updateData.end_time !== undefined)
+      updateFields.end_time = updateData.end_time || null;
+    if (updateData.class_type !== undefined)
+      updateFields.class_type = updateData.class_type;
+    if (updateData.academic_year !== undefined)
+      updateFields.academic_year = updateData.academic_year;
+    if (updateData.semester !== undefined)
+      updateFields.semester = updateData.semester || null;
+    if (updateData.is_active !== undefined)
+      updateFields.is_active = updateData.is_active;
+    if (updateData.class_id !== undefined)
+      updateFields.class_id = updateData.class_id || null;
+
+    const { data: subjectClassData, error } = await supabase
+      .from("subject_classes")
+      .update(updateFields)
       .eq("id", id)
       .select()
       .single();
 
     if (error) {
-      console.error("Error updating class:", error);
+      console.error("Error updating subject_class:", error);
       return NextResponse.json(
         { success: false, error: error.message },
         { status: 500 }
@@ -435,7 +540,7 @@ export async function PATCH(request: Request) {
 
     return NextResponse.json({
       success: true,
-      class: classData,
+      class: subjectClassData,
     });
   } catch (error: any) {
     console.error("Unexpected error:", error);

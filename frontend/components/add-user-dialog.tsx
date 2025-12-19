@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -29,6 +29,13 @@ interface AddUserDialogProps {
   onUserAdded?: () => void;
 }
 
+interface Class {
+  id: string;
+  class_name?: string;
+  section?: string;
+  class_id?: string;
+}
+
 export function AddUserDialog({
   open,
   onOpenChange,
@@ -38,6 +45,7 @@ export function AddUserDialog({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [classes, setClasses] = useState<Class[]>([]);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -53,6 +61,7 @@ export function AddUserDialog({
     address: "",
     emergencyContactName: "",
     emergencyContactPhone: "",
+    classId: "",
     // Parent info (for students)
     parentEmail: "",
     parentFirstName: "",
@@ -67,6 +76,25 @@ export function AddUserDialog({
     // Admin specific
     department: "",
   });
+
+  // Fetch classes for student assignment
+  useEffect(() => {
+    if (open && userType === "student") {
+      fetchClasses();
+    }
+  }, [open, userType]);
+
+  const fetchClasses = async () => {
+    try {
+      const response = await fetch("/api/classes");
+      const data = await response.json();
+      if (data.success && data.classes) {
+        setClasses(data.classes);
+      }
+    } catch (err) {
+      console.error("Error fetching classes:", err);
+    }
+  };
 
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -117,6 +145,10 @@ export function AddUserDialog({
         requestBody.dateOfBirth = "2000-01-01"; // Placeholder
         requestBody.gender = "male"; // Placeholder
         requestBody.address = ""; // To be filled by student
+        // Add class assignment if selected
+        if (formData.classId) {
+          requestBody.classId = formData.classId;
+        }
       } else if (userType === "teacher") {
         if (!formData.hireDate) {
           throw new Error("Please fill in hire date");
@@ -166,6 +198,7 @@ export function AddUserDialog({
         address: "",
         emergencyContactName: "",
         emergencyContactPhone: "",
+        classId: "",
         parentEmail: "",
         parentFirstName: "",
         parentLastName: "",
@@ -298,25 +331,6 @@ export function AddUserDialog({
           {/* Student Specific Fields */}
           {userType === "student" && (
             <div className="space-y-4 border-t pt-4">
-              {/* <div className="bg-blue-50 dark:bg-blue-950 p-4 rounded-md">
-                <h3 className="font-semibold text-sm text-blue-900 dark:text-blue-100">
-                  Student Account Creation
-                </h3>
-                <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
-                  Admin provides basic info. Student will complete registration
-                  using the generated student code.
-                </p>
-              </div> */}
-{/* 
-              <div className="space-y-2">
-                <Label className="text-muted-foreground">
-                  Student Code (Auto-generated)
-                </Label>
-                <p className="text-sm">
-                  System will generate a unique student code automatically
-                </p>
-              </div> */}
-
               <div className="space-y-2">
                 <Label className="text-muted-foreground">
                   Additional Information
@@ -325,6 +339,36 @@ export function AddUserDialog({
                   Student will provide DOB, gender, address, emergency contacts,
                   and parent information during registration
                 </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="classId">Assign to Class (Optional)</Label>
+                <Select
+                  value={formData.classId}
+                  onValueChange={(value) => handleInputChange("classId", value)}
+                  disabled={isLoading}
+                >
+                  <SelectTrigger id="classId">
+                    <SelectValue placeholder="Select a class..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {classes.map((cls) => {
+                      const classLabel = cls.class_name
+                        ? cls.section
+                          ? `${cls.class_name}-${cls.section}`
+                          : cls.class_name
+                        : "Unknown Class";
+                      return (
+                        <SelectItem
+                          key={cls.class_id || cls.id}
+                          value={cls.class_id || cls.id}
+                        >
+                          {classLabel}
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           )}

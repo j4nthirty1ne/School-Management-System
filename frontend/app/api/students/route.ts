@@ -22,7 +22,7 @@ export async function GET() {
       );
     }
 
-    // Fetch students from Supabase with user profile join
+    // Fetch students from Supabase with user profile and class info
     const { data: students, error } = await supabase
       .from("students")
       .select(
@@ -57,8 +57,8 @@ export async function GET() {
       );
     }
 
-    // Transform the data to flatten user_profiles
-    const transformedStudents = students?.map((student: any) => ({
+    // Transform the data to flatten user_profiles and fetch class names separately
+    let transformedStudents = (students || []).map((student: any) => ({
       id: student.id,
       student_code: student.student_code,
       first_name: student.user_profiles?.first_name,
@@ -74,8 +74,47 @@ export async function GET() {
       emergency_contact_phone: student.emergency_contact_phone,
       medical_notes: student.medical_notes,
       class_id: student.class_id,
+      class_name: "Not assigned", // Will be filled if class_id exists
       created_at: student.created_at,
     }));
+
+    // Fetch class names for students that have class_id
+    if (transformedStudents.some((s) => s.class_id)) {
+      try {
+        const classIds = [
+          ...new Set(
+            transformedStudents.map((s) => s.class_id).filter(Boolean)
+          ),
+        ];
+
+        const { data: classes } = await supabase
+          .from("classes")
+          .select("id, class_name, section")
+          .in("id", classIds);
+
+        if (classes) {
+          // Create a map of class_id to class_name
+          const classMap = new Map();
+          classes.forEach((cls: any) => {
+            const name = cls.class_name || "Class";
+            const section = cls.section || "";
+            const className = section ? `${name}-${section}` : name;
+            classMap.set(cls.id, className);
+          });
+
+          // Update student class_names
+          transformedStudents = transformedStudents.map((student) => ({
+            ...student,
+            class_name: student.class_id
+              ? classMap.get(student.class_id) || "Unknown Class"
+              : "Not assigned",
+          }));
+        }
+      } catch (err) {
+        console.error("Error fetching class names:", err);
+        // Continue with "Not assigned" for all
+      }
+    }
 
     return NextResponse.json({
       success: true,

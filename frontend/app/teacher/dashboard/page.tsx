@@ -1749,11 +1749,7 @@ export default function TeacherDashboard() {
                   if (todayClasses.length === 0) {
                     return (
                       <div className="text-center py-8 text-muted-foreground">
-<<<<<<< HEAD
-                        No groups scheduled for today
-=======
                         No classes scheduled for today ({today})
->>>>>>> 08a3fa3b81e447705fdcfc4d17c4f686990b68c0
                       </div>
                     );
                   }

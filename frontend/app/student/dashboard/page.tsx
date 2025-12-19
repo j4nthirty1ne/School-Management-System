@@ -11,7 +11,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { JoinGroupDialog } from "@/components/join-group-dialog";
 import {
   Dialog,
   DialogContent,
@@ -165,39 +164,11 @@ export default function StudentDashboard() {
     router.push("/login");
   };
 
-<<<<<<< HEAD
-  const fetchDialogData = async (
-    dialogType: "attendance" | "grades" | "assignments" | "groups"
-  ) => {
-    setDialogLoading(true);
-    try {
-      if (dialogType === "attendance") {
-        const res = await fetch("/api/students/attendance");
-        const json = await res.json();
-        setAttendanceData(json.attendance || []);
-      }
-      if (dialogType === "grades") {
-        const res = await fetch("/api/students/grades");
-        const json = await res.json();
-        setGradesData(json.grades || []);
-      }
-      if (dialogType === "assignments") {
-        const res = await fetch("/api/students/assignments");
-        const json = await res.json();
-        setAssignmentsData(json.assignments || []);
-      }
-      if (dialogType === "groups") {
-        const res = await fetch("/api/students/classes");
-        const json = await res.json();
-        setClassesData(json.classes || []);
-      }
-=======
   const loadClassesData = async () => {
     try {
       const res = await fetch("/api/students/classes");
       const json = await res.json();
       setClassesData(json.classes || []);
->>>>>>> 08a3fa3b81e447705fdcfc4d17c4f686990b68c0
     } catch (err) {
       console.error("Failed to load classes", err);
     }
@@ -553,24 +524,8 @@ export default function StudentDashboard() {
                 {classesData.length} Active
               </div>
               <p className="text-xs text-gray-500 dark:text-gray-400">
-<<<<<<< HEAD
-                Your enrolled groups
-              </p>
-              <Button
-                variant="outline"
-                size="sm"
-                className="mt-2 w-full"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setJoinDialogOpen(true);
-                }}
-              >
-                + Join New Group
-              </Button>
-=======
                 Enrolled classes
               </p>
->>>>>>> 08a3fa3b81e447705fdcfc4d17c4f686990b68c0
             </CardContent>
           </Card>
         </div>
@@ -1005,16 +960,8 @@ export default function StudentDashboard() {
                       size="sm"
                       className="ml-4"
                       onClick={() => {
-<<<<<<< HEAD
-                        // Handle join group action - could open a video call link or group page
-                        window.alert(
-                          `Joining group: ${
-                            c.class_name || c.subject || c.subject_name
-                          }`
-=======
                         window.alert(
                           `Joining class: ${c.subject_name || c.class_name}`
->>>>>>> 08a3fa3b81e447705fdcfc4d17c4f686990b68c0
                         );
                       }}
                     >
@@ -1163,21 +1110,6 @@ export default function StudentDashboard() {
           </Card>
         </div>
       </main>
-<<<<<<< HEAD
-
-      <JoinGroupDialog
-        open={joinDialogOpen}
-        onOpenChange={setJoinDialogOpen}
-        studentId={user?.id || ""}
-        onSuccess={() => {
-          // Refresh groups data when dialog is open
-          if (openDialog === "groups") {
-            fetchDialogData("groups");
-          }
-        }}
-      />
-=======
->>>>>>> 08a3fa3b81e447705fdcfc4d17c4f686990b68c0
     </div>
   );
 }
