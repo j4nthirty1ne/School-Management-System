@@ -9,12 +9,15 @@ import { ParentDashboard } from "@/components/parent-dashboard"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { Button } from "@/components/ui/button"
 import { GraduationCap, Users, BookOpen, UserCircle, LogOut } from "lucide-react"
+import LightRays from "@/components/LightRays"
+import { useTheme } from "next-themes"
 
 type Role = "admin" | "teacher" | "student" | "parent"
 
 export default function DashboardPage() {
   const router = useRouter()
   const [selectedRole, setSelectedRole] = useState<Role | null>(null)
+  const { theme } = useTheme()
 
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' })
@@ -23,12 +26,27 @@ export default function DashboardPage() {
 
   if (!selectedRole) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="absolute top-4 right-4">
+      <div className="min-h-screen flex items-center justify-center p-4 relative">
+        {/* LightRays Background */}
+        <div className="fixed inset-0 z-0 pointer-events-none">
+          <LightRays
+            raysOrigin="top-center"
+            raysColor={theme === "light" ? "#6B7280" : "#B19EEF"}
+            raysSpeed={1.5}
+            lightSpread={0.8}
+            rayLength={1.2}
+            followMouse={true}
+            mouseInfluence={0.1}
+            noiseAmount={0.1}
+            distortion={0.05}
+          />
+        </div>
+
+        <div className="absolute top-4 right-4 z-10">
           <ThemeToggle />
         </div>
 
-        <div className="max-w-4xl w-full">
+        <div className="max-w-4xl w-full relative z-10">
           <div className="text-center mb-12">
             <h1 className="text-4xl font-bold mb-3 text-balance">School Management System</h1>
             <p className="text-muted-foreground text-lg">Select your role to continue</p>

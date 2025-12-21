@@ -789,7 +789,7 @@ export default function TeacherDashboard() {
           <div>
             <h1 className="text-2xl font-bold">Teacher Portal</h1>
             <p className="text-sm text-muted-foreground">
-              Welcome back, {teacher?.first_name} {teacher?.last_name}
+              Welcome back : {teacher?.first_name} {teacher?.last_name}
             </p>
           </div>
           <div className="flex items-center gap-3">
